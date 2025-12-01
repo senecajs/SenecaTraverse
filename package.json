@@ -1,19 +1,19 @@
 {
-  "name": "@seneca/config",
+  "name": "@seneca/traverse",
   "version": "0.5.0",
-  "main": "dist/Config.js",
+  "main": "dist/Traverse.js",
   "type": "commonjs",
-  "types": "dist/Config.d.ts",
-  "description": "Live configuration plugin for the Seneca framework.",
-  "homepage": "https://github.com/senecajs/SenecaConfig",
+  "types": "dist/Traverse.d.ts",
+  "description": "Data Traverse plugin for the Seneca framework.",
+  "homepage": "https://github.com/senecajs/SenecaTraverse",
   "keywords": [
     "seneca",
-    "Config"
+    "Traverse"
   ],
   "author": "Richard Rodger - richardrodger.com",
   "repository": {
     "type": "git",
-    "url": "git://github.com/senecajs/SenecaConfig.git"
+    "url": "git://github.com/senecajs/SenecaTraverse.git"
   },
   "scripts": {
     "prettier": "prettier --write .",
@@ -41,14 +41,14 @@
   "devDependencies": {
     "@seneca/doc": "^8.0.0",
     "@seneca/maintain": "^0.1.0",
-    "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.2",
-    "esbuild": "^0.21.5",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.10.1",
+    "esbuild": "^0.27.0",
     "esbuild-jest": "^0.5.0",
-    "jest": "^29.7.0",
-    "prettier": "3.3.1",
+    "jest": "^30.2.0",
+    "prettier": "3.7.3",
     "seneca-msg-test": "^4.1.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.9.3"
   },
   "peerDependencies": {
     "@seneca/entity-util": ">=3",
