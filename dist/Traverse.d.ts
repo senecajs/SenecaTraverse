@@ -1,5 +1,11 @@
+type Entity = string;
+type Relation = [Entity, Entity];
+type Parental = Relation[];
 type TraverseOptionsFull = {
     debug: boolean;
+    relations: {
+        parental: Parental;
+    };
 };
 export type TraverseOptions = Partial<TraverseOptionsFull>;
 declare function Traverse(this: any, options: TraverseOptionsFull): void;
