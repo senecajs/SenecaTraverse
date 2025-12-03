@@ -42,7 +42,6 @@
     "@seneca/doc": "^8.0.0",
     "@seneca/maintain": "^0.1.0",
     "@types/node": "^24.10.1",
-    "esbuild": "^0.27.0",
     "prettier": "3.7.3",
     "seneca-msg-test": "^4.1.0",
     "typescript": "^5.9.3"
