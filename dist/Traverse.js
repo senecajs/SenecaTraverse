@@ -32,7 +32,7 @@ function Traverse(options) {
         while (levelEntToProcess.length > 0) {
             const nextLevel = [];
             const levelDeps = [];
-            // levelEntToProcess.sort()
+            levelEntToProcess.sort();
             for (const parent of levelEntToProcess) {
                 const entityChildren = parentChildrenMap.get(parent)?.sort() || [];
                 if (entityChildren.length === 0) {
