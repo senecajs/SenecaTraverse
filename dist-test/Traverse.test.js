@@ -52,7 +52,6 @@ const __2 = __importDefault(require(".."));
         });
         await seneca.ready();
         const result = await seneca.post('sys:traverse,find:deps');
-        // console.log('find deps result ', sortedDepsList)
         (0, code_1.expect)(result.deps).equal([
             // Level 0
             ['foo/bar0', 'foo/bar1'],
