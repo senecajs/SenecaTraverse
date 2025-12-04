@@ -31,7 +31,8 @@ function Traverse(options) {
         levelEntToProcess.push(rootEntity);
         while (levelEntToProcess.length > 0) {
             const nextLevel = [];
-            levelEntToProcess.sort();
+            const levelDeps = [];
+            // levelEntToProcess.sort()
             for (const parent of levelEntToProcess) {
                 const entityChildren = parentChildrenMap.get(parent)?.sort() || [];
                 if (entityChildren.length === 0) {
@@ -39,12 +40,15 @@ function Traverse(options) {
                 }
                 for (const child of entityChildren) {
                     if (!visitedEntitiesSet.has(child)) {
-                        deps.push([parent, child]);
+                        levelDeps.push([parent, child]);
                         visitedEntitiesSet.add(child);
                         nextLevel.push(child);
                     }
                 }
             }
+            levelDeps.sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }) ||
+                a[1].localeCompare(b[1], undefined, { numeric: true }));
+            deps.push(...levelDeps);
             levelEntToProcess = nextLevel;
         }
         return {

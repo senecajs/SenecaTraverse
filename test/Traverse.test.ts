@@ -475,55 +475,55 @@ describe('Traverse', () => {
     ])
   })
 
-  // test('find-deps-l1-convergent', async () => {
-  //   const seneca = makeSeneca().use(Traverse, {
-  //     relations: {
-  //       parental: [
-  //         ['foo/bar2', 'foo/bar3'],
-  //         ['foo/bar0', 'foo/bar1'],
-  //         ['foo/bar0', 'foo/bar2'],
-  //         ['foo/bar1', 'foo/bar4'],
-  //         ['foo/bar1', 'foo/bar5'],
-  //         ['foo/bar3', 'foo/bar6'],
-  //         ['foo/bar4', 'foo/bar7'],
-  //         ['foo/bar5', 'foo/bar8'],
-  //         ['foo/bar0', 'foo/zed0'],
-  //         ['foo/zed0', 'foo/zed1'],
-  //         ['foo/zed1', 'foo/zed2'],
-  //         ['bar/baz0', 'bar/baz1'],
-  //         ['qux/test', 'qux/prod'],
-  //         ['foo/bar2', 'foo/bar9'],
-  //         ['foo/bar6', 'foo/bar10'],
-  //         ['foo/bar7', 'foo/bar11'],
-  //         // Add convergent paths from bar1
-  //         ['foo/bar4', 'foo/bar12'],
-  //         ['foo/bar5', 'foo/bar12'], // bar12 converges from bar4 and bar5
-  //         ['foo/bar12', 'foo/bar13'],
-  //       ],
-  //     },
-  //   })
-  //   await seneca.ready()
-  //
-  //   const res = await seneca.post('sys:traverse,find:deps', {
-  //     rootEntity: 'foo/bar1',
-  //   })
-  //
-  //   expect(res.deps).equal([
-  //     // Level 0
-  //     ['foo/bar1', 'foo/bar4'],
-  //     ['foo/bar1', 'foo/bar5'],
-  //
-  //     // Level 1
-  //     ['foo/bar4', 'foo/bar7'],
-  //     ['foo/bar4', 'foo/bar12'],
-  //     ['foo/bar5', 'foo/bar8'],
-  //
-  //     // Level 2
-  //     ['foo/bar7', 'foo/bar11'],
-  //     ['foo/bar12', 'foo/bar13'],
-  //   ])
-  // })
-  //
+  test('find-deps-l1-convergent', async () => {
+    const seneca = makeSeneca().use(Traverse, {
+      relations: {
+        parental: [
+          ['foo/bar2', 'foo/bar3'],
+          ['foo/bar0', 'foo/bar1'],
+          ['foo/bar0', 'foo/bar2'],
+          ['foo/bar1', 'foo/bar4'],
+          ['foo/bar1', 'foo/bar5'],
+          ['foo/bar3', 'foo/bar6'],
+          ['foo/bar4', 'foo/bar7'],
+          ['foo/bar5', 'foo/bar8'],
+          ['foo/bar0', 'foo/zed0'],
+          ['foo/zed0', 'foo/zed1'],
+          ['foo/zed1', 'foo/zed2'],
+          ['bar/baz0', 'bar/baz1'],
+          ['qux/test', 'qux/prod'],
+          ['foo/bar2', 'foo/bar9'],
+          ['foo/bar6', 'foo/bar10'],
+          ['foo/bar7', 'foo/bar11'],
+          ['foo/bar4', 'foo/bar12'],
+          // bar12 converges from bar4 and bar5
+          ['foo/bar5', 'foo/bar12'],
+          ['foo/bar12', 'foo/bar13'],
+        ],
+      },
+    })
+    await seneca.ready()
+
+    const res = await seneca.post('sys:traverse,find:deps', {
+      rootEntity: 'foo/bar1',
+    })
+
+    expect(res.deps).equal([
+      // Level 0
+      ['foo/bar1', 'foo/bar4'],
+      ['foo/bar1', 'foo/bar5'],
+
+      // Level 1
+      ['foo/bar4', 'foo/bar7'],
+      ['foo/bar4', 'foo/bar12'],
+      ['foo/bar5', 'foo/bar8'],
+
+      // Level 2
+      ['foo/bar7', 'foo/bar11'],
+      ['foo/bar12', 'foo/bar13'],
+    ])
+  })
+
   // test('find-deps-l1-cycle', async () => {
   //   const seneca = makeSeneca().use(Traverse, {
   //     relations: {
