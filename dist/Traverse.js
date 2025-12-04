@@ -1,17 +1,18 @@
 "use strict";
 /* Copyright © 2025 Seneca Project Contributors, MIT License. */
 Object.defineProperty(exports, "__esModule", { value: true });
+const gubu_1 = require("gubu");
 function Traverse(options) {
     const seneca = this;
     const { Default } = seneca.valid;
     seneca
         .fix('sys:traverse')
-        .message('find:deps', { rootEntity: String }, msgFindDeps);
+        .message('find:deps', { rootEntity: (0, gubu_1.Optional)(String), relations: (0, gubu_1.Skip)({ parental: [[String, String]] }) }, msgFindDeps);
     // Returns the sorted entity pairs, starting from a given entity.
     // In breadth-first order, sorting first by level, then alphabetically in each level.
     async function msgFindDeps(msg) {
         // const seneca = this
-        const allRealtions = options.relations.parental;
+        const allRealtions = msg.relations?.parental || options.relations.parental;
         const rootEntity = msg.rootEntity || options.rootEntity;
         const parentChildrenMap = new Map();
         const deps = [];

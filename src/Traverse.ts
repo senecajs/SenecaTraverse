@@ -1,5 +1,7 @@
 /* Copyright © 2025 Seneca Project Contributors, MIT License. */
 
+import { Optional, Skip } from 'gubu'
+
 type Entity = string
 
 type Relation = [Entity, Entity]
@@ -23,7 +25,14 @@ function Traverse(this: any, options: TraverseOptionsFull) {
 
   seneca
     .fix('sys:traverse')
-    .message('find:deps', { rootEntity: String }, msgFindDeps)
+    .message(
+      'find:deps',
+      {
+        rootEntity: Optional(String),
+        relations: Skip({ parental: [[String, String]] }),
+      },
+      msgFindDeps,
+    )
 
   // Returns the sorted entity pairs, starting from a given entity.
   // In breadth-first order, sorting first by level, then alphabetically in each level.
@@ -31,11 +40,15 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     this: any,
     msg: {
       rootEntity: Entity
+      relations: {
+        parental: Parental
+      }
     },
   ): Promise<{ ok: boolean; deps: Relation[] }> {
     // const seneca = this
 
-    const allRealtions = options.relations.parental
+    const allRealtions: Parental =
+      msg.relations?.parental || options.relations.parental
     const rootEntity = msg.rootEntity || options.rootEntity
 
     const parentChildrenMap: Map<Entity, Entity[]> = new Map()
