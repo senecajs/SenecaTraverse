@@ -32,7 +32,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     msgFindDeps,
   )
 
-  // Returns the sorted entity pairs, starting from a given entity.
+  // Returns a sorted list of entity pairs starting from a given entity.
   // In breadth-first order, sorting first by level, then alphabetically in each level.
   async function msgFindDeps(
     this: any,
