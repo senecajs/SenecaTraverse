@@ -1020,6 +1020,56 @@ describe('Traverse', () => {
       },
     ])
   })
+
+  test('find-children-default-root-entity', async () => {
+    const seneca = makeSeneca().use(Traverse)
+    await seneca.ready()
+
+    const rootEntityId = 'user-456'
+
+    const settingsEnt = await seneca.entity('user/settings').save$({
+      user_id: rootEntityId,
+    })
+
+    const projectEnt = await seneca.entity('user/project').save$({
+      user_id: rootEntityId,
+    })
+
+    const releaseEnt = await seneca.entity('project/release').save$({
+      project_id: projectEnt.id,
+    })
+
+    const res = await seneca.post('sys:traverse,find:children', {
+      // rootEntity omitted - should default to 'sys/user'
+      rootEntityId: rootEntityId,
+      relations: [
+        ['sys/user', 'user/settings'],
+        ['sys/user', 'user/project'],
+        ['user/project', 'project/release'],
+      ],
+    })
+
+    expect(res.children).equal([
+      {
+        parent_id: rootEntityId,
+        child_id: settingsEnt.id,
+        parent_canon: 'sys/user',
+        child_canon: 'user/settings',
+      },
+      {
+        parent_id: rootEntityId,
+        child_id: projectEnt.id,
+        parent_canon: 'sys/user',
+        child_canon: 'user/project',
+      },
+      {
+        parent_id: projectEnt.id,
+        child_id: releaseEnt.id,
+        parent_canon: 'user/project',
+        child_canon: 'project/release',
+      },
+    ])
+  })
 })
 
 function makeSeneca(opts: any = {}) {
