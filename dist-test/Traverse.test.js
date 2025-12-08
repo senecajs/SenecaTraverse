@@ -986,6 +986,90 @@ const __2 = __importDefault(require(".."));
             },
         ]);
     });
+    (0, node_test_1.test)('find-children-single-entity-tree', async () => {
+        const seneca = makeSeneca().use(__2.default);
+        await seneca.ready();
+        const rootEntityId = '123';
+        const bar1Ent = await seneca.entity('foo/bar1').save$({
+            bar0_id: rootEntityId,
+        });
+        const res = await seneca.post('sys:traverse,find:children', {
+            rootEntity: 'foo/bar0',
+            rootEntityId: rootEntityId,
+            relations: [['foo/bar0', 'foo/bar1']],
+        });
+        (0, code_1.expect)(res.children).equal([
+            {
+                parent_id: rootEntityId,
+                child_id: bar1Ent.id,
+                parent_canon: 'foo/bar0',
+                child_canon: 'foo/bar1',
+            },
+        ]);
+    });
+    (0, node_test_1.test)('find-children-deep-linear-chain', async () => {
+        const seneca = makeSeneca().use(__2.default);
+        await seneca.ready();
+        const rootEntityId = '123';
+        const bar1Ent = await seneca.entity('foo/bar1').save$({
+            bar0_id: rootEntityId,
+        });
+        const bar2Ent = await seneca.entity('foo/bar2').save$({
+            bar1_id: bar1Ent.id,
+        });
+        const bar3Ent = await seneca.entity('foo/bar3').save$({
+            bar2_id: bar2Ent.id,
+        });
+        const bar4Ent = await seneca.entity('foo/bar4').save$({
+            bar3_id: bar3Ent.id,
+        });
+        const bar5Ent = await seneca.entity('foo/bar5').save$({
+            bar4_id: bar4Ent.id,
+        });
+        const res = await seneca.post('sys:traverse,find:children', {
+            rootEntity: 'foo/bar0',
+            rootEntityId: rootEntityId,
+            relations: [
+                ['foo/bar0', 'foo/bar1'],
+                ['foo/bar1', 'foo/bar2'],
+                ['foo/bar2', 'foo/bar3'],
+                ['foo/bar3', 'foo/bar4'],
+                ['foo/bar4', 'foo/bar5'],
+            ],
+        });
+        (0, code_1.expect)(res.children).equal([
+            {
+                parent_id: rootEntityId,
+                child_id: bar1Ent.id,
+                parent_canon: 'foo/bar0',
+                child_canon: 'foo/bar1',
+            },
+            {
+                parent_id: bar1Ent.id,
+                child_id: bar2Ent.id,
+                parent_canon: 'foo/bar1',
+                child_canon: 'foo/bar2',
+            },
+            {
+                parent_id: bar2Ent.id,
+                child_id: bar3Ent.id,
+                parent_canon: 'foo/bar2',
+                child_canon: 'foo/bar3',
+            },
+            {
+                parent_id: bar3Ent.id,
+                child_id: bar4Ent.id,
+                parent_canon: 'foo/bar3',
+                child_canon: 'foo/bar4',
+            },
+            {
+                parent_id: bar4Ent.id,
+                child_id: bar5Ent.id,
+                parent_canon: 'foo/bar4',
+                child_canon: 'foo/bar5',
+            },
+        ]);
+    });
 });
 function makeSeneca(opts = {}) {
     const seneca = (0, seneca_1.default)({ legacy: false }).test().use('promisify').use('entity');
