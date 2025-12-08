@@ -944,6 +944,48 @@ const __2 = __importDefault(require(".."));
             },
         ]);
     });
+    (0, node_test_1.test)('find-children-avoid-wrong-children', async () => {
+        const seneca = makeSeneca().use(__2.default);
+        await seneca.ready();
+        const rootEntityId = '123';
+        const bar1Ent = await seneca.entity('foo/bar1').save$({
+            bar0_id: rootEntityId,
+        });
+        const bar2Ent = await seneca.entity('foo/bar2').save$({
+            bar0_id: rootEntityId,
+        });
+        // Create bar3 entities but with another parent_id
+        await seneca.entity('foo/bar3').save$({
+            bar1_id: '456',
+        });
+        await seneca.entity('foo/bar3').save$({
+            bar1_id: '789',
+        });
+        const res = await seneca.post('sys:traverse,find:children', {
+            rootEntity: 'foo/bar0',
+            rootEntityId: rootEntityId,
+            relations: [
+                ['foo/bar0', 'foo/bar1'],
+                ['foo/bar0', 'foo/bar2'],
+                ['foo/bar1', 'foo/bar3'],
+            ],
+        });
+        // Should not include other parent children
+        (0, code_1.expect)(res.children).equal([
+            {
+                parent_id: rootEntityId,
+                child_id: bar1Ent.id,
+                parent_canon: 'foo/bar0',
+                child_canon: 'foo/bar1',
+            },
+            {
+                parent_id: rootEntityId,
+                child_id: bar2Ent.id,
+                parent_canon: 'foo/bar0',
+                child_canon: 'foo/bar2',
+            },
+        ]);
+    });
 });
 function makeSeneca(opts = {}) {
     const seneca = (0, seneca_1.default)({ legacy: false }).test().use('promisify').use('entity');
