@@ -5,10 +5,17 @@ const gubu_1 = require("gubu");
 function Traverse(options) {
     const seneca = this;
     // const { Default } = seneca.valid
-    seneca.fix('sys:traverse').message('find:deps', {
+    seneca
+        .fix('sys:traverse')
+        .message('find:deps', {
         rootEntity: (0, gubu_1.Optional)(String),
         relations: (0, gubu_1.Skip)({ parental: [[String, String]] }),
-    }, msgFindDeps);
+    }, msgFindDeps)
+        .message('find:children', {
+        rootEntity: (0, gubu_1.Optional)(String),
+        rootEntityId: String,
+        relations: [[String, String]],
+    }, msgFindChildren);
     // Returns a sorted list of entity pairs starting from a given entity.
     // In breadth-first order, sorting first by level, then alphabetically in each level.
     async function msgFindDeps(msg) {
@@ -51,9 +58,40 @@ function Traverse(options) {
             deps,
         };
     }
+    async function msgFindChildren(msg) {
+        const out = [];
+        const rootEntity = msg.rootEntity || options.rootEntity;
+        const rootEntityId = msg.rootEntityId;
+        const relations = msg.relations;
+        for (const relation of relations) {
+            const parentCanon = relation[0];
+            const childCanon = relation[1];
+            const parentEntityName = getEntityName(parentCanon);
+            const parentReference = `${parentEntityName}_id`;
+            const childInstances = await seneca.entity(childCanon).list$({
+                [parentReference]: rootEntityId,
+                fields$: ['id'],
+            });
+            for (const childInst of childInstances) {
+                out.push({
+                    parent_id: rootEntityId,
+                    child_id: childInst.id,
+                    parent_canon: rootEntity,
+                    child_canon: childCanon,
+                });
+            }
+        }
+        return {
+            ok: true,
+            childrenIdx: out,
+        };
+    }
     function compareRelations(relations) {
         return [...relations].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }) ||
             a[1].localeCompare(b[1], undefined, { numeric: true }));
+    }
+    function getEntityName(entity) {
+        return entity.split('/')[1] ?? '';
     }
 }
 // Default options.

@@ -8,6 +8,13 @@ type Relation = [Entity, Entity]
 
 type Parental = Relation[]
 
+type ChildrenIntances = {
+  parent_id: string
+  child_id: string
+  parent_canon: Entity
+  child_canon: Entity
+}
+
 type TraverseOptionsFull = {
   debug: boolean
   rootEntity: Entity
@@ -23,14 +30,25 @@ function Traverse(this: any, options: TraverseOptionsFull) {
 
   // const { Default } = seneca.valid
 
-  seneca.fix('sys:traverse').message(
-    'find:deps',
-    {
-      rootEntity: Optional(String),
-      relations: Skip({ parental: [[String, String]] }),
-    },
-    msgFindDeps,
-  )
+  seneca
+    .fix('sys:traverse')
+    .message(
+      'find:deps',
+      {
+        rootEntity: Optional(String),
+        relations: Skip({ parental: [[String, String]] }),
+      },
+      msgFindDeps,
+    )
+    .message(
+      'find:children',
+      {
+        rootEntity: Optional(String),
+        rootEntityId: String,
+        relations: [[String, String]],
+      },
+      msgFindChildren,
+    )
 
   // Returns a sorted list of entity pairs starting from a given entity.
   // In breadth-first order, sorting first by level, then alphabetically in each level.
@@ -95,12 +113,66 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     }
   }
 
+  async function msgFindChildren(
+    this: any,
+    msg: {
+      rootEntity?: Entity
+      rootEntityId: string
+      relations: Relation[]
+    },
+  ): Promise<{
+    ok: boolean
+    why?: string
+    childrenIdx?: ChildrenIntances[]
+  }> {
+    const out: ChildrenIntances[] = []
+    const rootEntity: Entity = msg.rootEntity || options.rootEntity
+    const rootEntityId = msg.rootEntityId
+
+    const relations = msg.relations
+
+    for (const relation of relations) {
+      const parentCanon = relation[0]
+      const childCanon = relation[1]
+
+      const parentEntityName = getEntityName(parentCanon)
+
+      const parentReference = `${parentEntityName}_id`
+
+      const childInstances: {
+        entity$: string
+        id: string
+      }[] = await seneca.entity(childCanon).list$({
+        [parentReference]: rootEntityId,
+        fields$: ['id'],
+      })
+
+      for (const childInst of childInstances) {
+        out.push({
+          parent_id: rootEntityId,
+          child_id: childInst.id,
+          parent_canon: rootEntity,
+          child_canon: childCanon,
+        })
+      }
+    }
+
+    return {
+      ok: true,
+      childrenIdx: out,
+    }
+  }
+
   function compareRelations(relations: Relation[]): Relation[] {
     return [...relations].sort(
       (a, b) =>
         a[0].localeCompare(b[0], undefined, { numeric: true }) ||
         a[1].localeCompare(b[1], undefined, { numeric: true }),
     )
+  }
+
+  function getEntityName(entity: Entity): string {
+    return entity.split('/')[1] ?? ''
   }
 }
 
