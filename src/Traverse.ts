@@ -131,7 +131,12 @@ function Traverse(this: any, options: TraverseOptionsFull) {
 
     const relations = msg.relations
 
-    for (const relation of relations) {
+    const parentInstanceMap: Map<Entity, string[]> = new Map()
+    parentInstanceMap.set(rootEntity, [rootEntityId])
+
+    while (relations.length > 0) {
+      const relation = relations.shift()!
+
       const parentCanon = relation[0]
       const childCanon = relation[1]
 
@@ -139,21 +144,31 @@ function Traverse(this: any, options: TraverseOptionsFull) {
 
       const parentReference = `${parentEntityName}_id`
 
-      const childInstances: {
-        entity$: string
-        id: string
-      }[] = await seneca.entity(childCanon).list$({
-        [parentReference]: rootEntityId,
-        fields$: ['id'],
-      })
+      const parentInstances = parentInstanceMap.get(parentCanon) ?? []
 
-      for (const childInst of childInstances) {
-        out.push({
-          parent_id: rootEntityId,
-          child_id: childInst.id,
-          parent_canon: rootEntity,
-          child_canon: childCanon,
+      for (const parentId of parentInstances) {
+        const childInstances: {
+          entity$: string
+          id: string
+        }[] = await seneca.entity(childCanon).list$({
+          [parentReference]: parentId,
+          fields$: ['id'],
         })
+
+        for (const childInst of childInstances) {
+          if (!parentInstanceMap.has(childCanon)) {
+            parentInstanceMap.set(childCanon, [])
+          }
+
+          parentInstanceMap.get(childCanon)!.push(childInst.id)
+
+          out.push({
+            parent_id: parentId,
+            child_id: childInst.id,
+            parent_canon: parentCanon,
+            child_canon: childCanon,
+          })
+        }
       }
     }
 

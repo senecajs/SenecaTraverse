@@ -63,22 +63,32 @@ function Traverse(options) {
         const rootEntity = msg.rootEntity || options.rootEntity;
         const rootEntityId = msg.rootEntityId;
         const relations = msg.relations;
-        for (const relation of relations) {
+        const parentInstanceMap = new Map();
+        parentInstanceMap.set(rootEntity, [rootEntityId]);
+        while (relations.length > 0) {
+            const relation = relations.shift();
             const parentCanon = relation[0];
             const childCanon = relation[1];
             const parentEntityName = getEntityName(parentCanon);
             const parentReference = `${parentEntityName}_id`;
-            const childInstances = await seneca.entity(childCanon).list$({
-                [parentReference]: rootEntityId,
-                fields$: ['id'],
-            });
-            for (const childInst of childInstances) {
-                out.push({
-                    parent_id: rootEntityId,
-                    child_id: childInst.id,
-                    parent_canon: rootEntity,
-                    child_canon: childCanon,
+            const parentInstances = parentInstanceMap.get(parentCanon) ?? [];
+            for (const parentId of parentInstances) {
+                const childInstances = await seneca.entity(childCanon).list$({
+                    [parentReference]: parentId,
+                    fields$: ['id'],
                 });
+                for (const childInst of childInstances) {
+                    if (!parentInstanceMap.has(childCanon)) {
+                        parentInstanceMap.set(childCanon, []);
+                    }
+                    parentInstanceMap.get(childCanon).push(childInst.id);
+                    out.push({
+                        parent_id: parentId,
+                        child_id: childInst.id,
+                        parent_canon: parentCanon,
+                        child_canon: childCanon,
+                    });
+                }
             }
         }
         return {
