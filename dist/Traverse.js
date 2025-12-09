@@ -5,14 +5,14 @@ const gubu_1 = require("gubu");
 function Traverse(options) {
     const seneca = this;
     // const { Default } = seneca.valid
-    seneca.fix('sys:traverse').message('find:deps', {
+    seneca
+        .fix('sys:traverse')
+        .message('find:deps', {
         rootEntity: (0, gubu_1.Optional)(String),
     }, msgFindDeps)
         .message('find:children', {
         rootEntity: (0, gubu_1.Optional)(String),
-        customRef: (0, gubu_1.Optional)(Object),
         rootEntityId: String,
-        relations: [[String, String]],
     }, msgFindChildren);
     // Returns a sorted list of entity pairs starting from a given entity.
     // In breadth-first order, sorting first by level, then alphabetically in each level.
@@ -61,7 +61,10 @@ function Traverse(options) {
         const rootEntity = msg.rootEntity || options.rootEntity;
         const rootEntityId = msg.rootEntityId;
         const customRef = options.customRef;
-        const relationsQueue = [...msg.relations];
+        const relationsQueueRes = await seneca.post('sys:traverse,find:deps', {
+            rootEntity,
+        });
+        const relationsQueue = relationsQueueRes.deps;
         const result = [];
         const parentInstanceMap = new Map();
         parentInstanceMap.set(rootEntity, new Set([rootEntityId]));

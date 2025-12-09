@@ -1041,7 +1041,26 @@ const __2 = __importDefault(require(".."));
         ]);
     });
     (0, node_test_1.test)('find-children', async () => {
-        const seneca = makeSeneca().use(__2.default);
+        const seneca = makeSeneca().use(__2.default, {
+            relations: {
+                parental: [
+                    ['foo/bar0', 'foo/bar1'],
+                    ['foo/bar0', 'foo/bar2'],
+                    ['foo/bar0', 'foo/zed0'],
+                    ['foo/bar1', 'foo/bar4'],
+                    ['foo/bar1', 'foo/bar5'],
+                    ['foo/bar2', 'foo/bar3'],
+                    ['foo/bar2', 'foo/bar9'],
+                    ['foo/zed0', 'foo/zed1'],
+                    ['foo/bar3', 'foo/bar6'],
+                    ['foo/bar4', 'foo/bar7'],
+                    ['foo/bar5', 'foo/bar8'],
+                    ['foo/zed1', 'foo/zed2'],
+                    ['foo/bar6', 'foo/bar10'],
+                    ['foo/bar7', 'foo/bar11'],
+                ],
+            },
+        });
         await seneca.ready();
         const rootEntityId = '123';
         // Level 1: Direct children of bar0
@@ -1099,22 +1118,6 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             rootEntity: 'foo/bar0',
             rootEntityId: rootEntityId,
-            relations: [
-                ['foo/bar0', 'foo/bar1'],
-                ['foo/bar0', 'foo/bar2'],
-                ['foo/bar0', 'foo/zed0'],
-                ['foo/bar1', 'foo/bar4'],
-                ['foo/bar1', 'foo/bar5'],
-                ['foo/bar2', 'foo/bar3'],
-                ['foo/bar2', 'foo/bar9'],
-                ['foo/zed0', 'foo/zed1'],
-                ['foo/bar3', 'foo/bar6'],
-                ['foo/bar4', 'foo/bar7'],
-                ['foo/bar5', 'foo/bar8'],
-                ['foo/zed1', 'foo/zed2'],
-                ['foo/bar6', 'foo/bar10'],
-                ['foo/bar7', 'foo/bar11'],
-            ],
         });
         (0, code_1.expect)(res.children).equal([
             // Level 1
@@ -1234,7 +1237,16 @@ const __2 = __importDefault(require(".."));
         (0, code_1.expect)(res.children).equal([]);
     });
     (0, node_test_1.test)('find-children-partial-tree', async () => {
-        const seneca = makeSeneca().use(__2.default);
+        const seneca = makeSeneca().use(__2.default, {
+            relations: {
+                parental: [
+                    ['foo/bar0', 'foo/bar1'],
+                    ['foo/bar0', 'foo/bar2'],
+                    ['foo/bar1', 'foo/bar3'],
+                    ['foo/bar1', 'foo/bar4'],
+                ],
+            },
+        });
         await seneca.ready();
         const rootEntityId = '123';
         // Only create bar1 and bar3, not bar2 or bar4
@@ -1247,12 +1259,6 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             rootEntity: 'foo/bar0',
             rootEntityId: rootEntityId,
-            relations: [
-                ['foo/bar0', 'foo/bar1'],
-                ['foo/bar0', 'foo/bar2'],
-                ['foo/bar1', 'foo/bar3'],
-                ['foo/bar1', 'foo/bar4'],
-            ],
         });
         // Should only return entities that exist in the data storage
         (0, code_1.expect)(res.children).equal([
@@ -1271,7 +1277,15 @@ const __2 = __importDefault(require(".."));
         ]);
     });
     (0, node_test_1.test)('find-children-default-root-entity', async () => {
-        const seneca = makeSeneca().use(__2.default);
+        const seneca = makeSeneca().use(__2.default, {
+            relations: {
+                parental: [
+                    ['sys/user', 'user/settings'],
+                    ['sys/user', 'user/project'],
+                    ['user/project', 'project/release'],
+                ],
+            },
+        });
         await seneca.ready();
         const rootEntityId = 'user-456';
         const settingsEnt = await seneca.entity('user/settings').save$({
@@ -1286,24 +1300,19 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             // rootEntity omitted - should default to 'sys/user'
             rootEntityId: rootEntityId,
-            relations: [
-                ['sys/user', 'user/settings'],
-                ['sys/user', 'user/project'],
-                ['user/project', 'project/release'],
-            ],
         });
         (0, code_1.expect)(res.children).equal([
-            {
-                parent_id: rootEntityId,
-                child_id: settingsEnt.id,
-                parent_canon: 'sys/user',
-                child_canon: 'user/settings',
-            },
             {
                 parent_id: rootEntityId,
                 child_id: projectEnt.id,
                 parent_canon: 'sys/user',
                 child_canon: 'user/project',
+            },
+            {
+                parent_id: rootEntityId,
+                child_id: settingsEnt.id,
+                parent_canon: 'sys/user',
+                child_canon: 'user/settings',
             },
             {
                 parent_id: projectEnt.id,
@@ -1314,7 +1323,15 @@ const __2 = __importDefault(require(".."));
         ]);
     });
     (0, node_test_1.test)('find-children-avoid-wrong-children', async () => {
-        const seneca = makeSeneca().use(__2.default);
+        const seneca = makeSeneca().use(__2.default, {
+            relations: {
+                parental: [
+                    ['foo/bar0', 'foo/bar1'],
+                    ['foo/bar0', 'foo/bar2'],
+                    ['foo/bar1', 'foo/bar3'],
+                ],
+            },
+        });
         await seneca.ready();
         const rootEntityId = '123';
         const bar1Ent = await seneca.entity('foo/bar1').save$({
@@ -1333,11 +1350,6 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             rootEntity: 'foo/bar0',
             rootEntityId: rootEntityId,
-            relations: [
-                ['foo/bar0', 'foo/bar1'],
-                ['foo/bar0', 'foo/bar2'],
-                ['foo/bar1', 'foo/bar3'],
-            ],
         });
         // Should not include other parent children
         (0, code_1.expect)(res.children).equal([
@@ -1356,7 +1368,11 @@ const __2 = __importDefault(require(".."));
         ]);
     });
     (0, node_test_1.test)('find-children-single-entity-tree', async () => {
-        const seneca = makeSeneca().use(__2.default);
+        const seneca = makeSeneca().use(__2.default, {
+            relations: {
+                parental: [['foo/bar0', 'foo/bar1']],
+            },
+        });
         await seneca.ready();
         const rootEntityId = '123';
         const bar1Ent = await seneca.entity('foo/bar1').save$({
@@ -1365,7 +1381,6 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             rootEntity: 'foo/bar0',
             rootEntityId: rootEntityId,
-            relations: [['foo/bar0', 'foo/bar1']],
         });
         (0, code_1.expect)(res.children).equal([
             {
@@ -1377,7 +1392,17 @@ const __2 = __importDefault(require(".."));
         ]);
     });
     (0, node_test_1.test)('find-children-deep-linear-chain', async () => {
-        const seneca = makeSeneca().use(__2.default);
+        const seneca = makeSeneca().use(__2.default, {
+            relations: {
+                parental: [
+                    ['foo/bar0', 'foo/bar1'],
+                    ['foo/bar1', 'foo/bar2'],
+                    ['foo/bar2', 'foo/bar3'],
+                    ['foo/bar3', 'foo/bar4'],
+                    ['foo/bar4', 'foo/bar5'],
+                ],
+            },
+        });
         await seneca.ready();
         const rootEntityId = '123';
         const bar1Ent = await seneca.entity('foo/bar1').save$({
@@ -1398,13 +1423,6 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             rootEntity: 'foo/bar0',
             rootEntityId: rootEntityId,
-            relations: [
-                ['foo/bar0', 'foo/bar1'],
-                ['foo/bar1', 'foo/bar2'],
-                ['foo/bar2', 'foo/bar3'],
-                ['foo/bar3', 'foo/bar4'],
-                ['foo/bar4', 'foo/bar5'],
-            ],
         });
         (0, code_1.expect)(res.children).equal([
             {
@@ -1445,6 +1463,13 @@ const __2 = __importDefault(require(".."));
                 'foo/bar2': 'custom0_id',
                 'foo/bar3': 'custom1_test',
             },
+            relations: {
+                parental: [
+                    ['foo/bar0', 'foo/bar1'],
+                    ['foo/bar0', 'foo/bar2'],
+                    ['foo/bar1', 'foo/bar3'],
+                ],
+            },
         });
         await seneca.ready();
         const rootEntityId = '123';
@@ -1460,11 +1485,6 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             rootEntity: 'foo/bar0',
             rootEntityId: rootEntityId,
-            relations: [
-                ['foo/bar0', 'foo/bar1'],
-                ['foo/bar0', 'foo/bar2'],
-                ['foo/bar1', 'foo/bar3'],
-            ],
         });
         (0, code_1.expect)(res.children).equal([
             {
@@ -1488,7 +1508,14 @@ const __2 = __importDefault(require(".."));
         ]);
     });
     (0, node_test_1.test)('find-children-multi-inst', async () => {
-        const seneca = makeSeneca().use(__2.default);
+        const seneca = makeSeneca().use(__2.default, {
+            relations: {
+                parental: [
+                    ['foo/bar0', 'foo/bar1'],
+                    ['foo/bar1', 'foo/bar2'],
+                ],
+            },
+        });
         await seneca.ready();
         const rootEntityId = '123';
         const bar1Ent1 = await seneca.entity('foo/bar1').save$({
@@ -1509,10 +1536,6 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             rootEntity: 'foo/bar0',
             rootEntityId: rootEntityId,
-            relations: [
-                ['foo/bar0', 'foo/bar1'],
-                ['foo/bar1', 'foo/bar2'],
-            ],
         });
         (0, code_1.expect)(res.children).equal([
             {
@@ -1548,7 +1571,15 @@ const __2 = __importDefault(require(".."));
         ]);
     });
     (0, node_test_1.test)('find-children-multiple-inst-multi-levels', async () => {
-        const seneca = makeSeneca().use(__2.default);
+        const seneca = makeSeneca().use(__2.default, {
+            relations: {
+                parental: [
+                    ['foo/bar0', 'foo/bar1'],
+                    ['foo/bar1', 'foo/bar2'],
+                    ['foo/bar2', 'foo/bar3'],
+                ],
+            },
+        });
         await seneca.ready();
         const rootEntityId = '123';
         const bar1Ent1 = await seneca.entity('foo/bar1').save$({
@@ -1587,11 +1618,6 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             rootEntity: 'foo/bar0',
             rootEntityId: rootEntityId,
-            relations: [
-                ['foo/bar0', 'foo/bar1'],
-                ['foo/bar1', 'foo/bar2'],
-                ['foo/bar2', 'foo/bar3'],
-            ],
         });
         (0, code_1.expect)(res.children).equal([
             // Level 1: All bar1 children of bar0

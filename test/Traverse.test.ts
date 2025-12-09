@@ -1169,7 +1169,26 @@ describe('Traverse', () => {
   })
 
   test('find-children', async () => {
-    const seneca = makeSeneca().use(Traverse)
+    const seneca = makeSeneca().use(Traverse, {
+      relations: {
+        parental: [
+          ['foo/bar0', 'foo/bar1'],
+          ['foo/bar0', 'foo/bar2'],
+          ['foo/bar0', 'foo/zed0'],
+          ['foo/bar1', 'foo/bar4'],
+          ['foo/bar1', 'foo/bar5'],
+          ['foo/bar2', 'foo/bar3'],
+          ['foo/bar2', 'foo/bar9'],
+          ['foo/zed0', 'foo/zed1'],
+          ['foo/bar3', 'foo/bar6'],
+          ['foo/bar4', 'foo/bar7'],
+          ['foo/bar5', 'foo/bar8'],
+          ['foo/zed1', 'foo/zed2'],
+          ['foo/bar6', 'foo/bar10'],
+          ['foo/bar7', 'foo/bar11'],
+        ],
+      },
+    })
     await seneca.ready()
 
     const rootEntityId = '123'
@@ -1243,22 +1262,6 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       rootEntity: 'foo/bar0',
       rootEntityId: rootEntityId,
-      relations: [
-        ['foo/bar0', 'foo/bar1'],
-        ['foo/bar0', 'foo/bar2'],
-        ['foo/bar0', 'foo/zed0'],
-        ['foo/bar1', 'foo/bar4'],
-        ['foo/bar1', 'foo/bar5'],
-        ['foo/bar2', 'foo/bar3'],
-        ['foo/bar2', 'foo/bar9'],
-        ['foo/zed0', 'foo/zed1'],
-        ['foo/bar3', 'foo/bar6'],
-        ['foo/bar4', 'foo/bar7'],
-        ['foo/bar5', 'foo/bar8'],
-        ['foo/zed1', 'foo/zed2'],
-        ['foo/bar6', 'foo/bar10'],
-        ['foo/bar7', 'foo/bar11'],
-      ],
     })
 
     expect(res.children).equal([
@@ -1389,7 +1392,16 @@ describe('Traverse', () => {
   })
 
   test('find-children-partial-tree', async () => {
-    const seneca = makeSeneca().use(Traverse)
+    const seneca = makeSeneca().use(Traverse, {
+      relations: {
+        parental: [
+          ['foo/bar0', 'foo/bar1'],
+          ['foo/bar0', 'foo/bar2'],
+          ['foo/bar1', 'foo/bar3'],
+          ['foo/bar1', 'foo/bar4'],
+        ],
+      },
+    })
     await seneca.ready()
 
     const rootEntityId = '123'
@@ -1406,12 +1418,6 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       rootEntity: 'foo/bar0',
       rootEntityId: rootEntityId,
-      relations: [
-        ['foo/bar0', 'foo/bar1'],
-        ['foo/bar0', 'foo/bar2'],
-        ['foo/bar1', 'foo/bar3'],
-        ['foo/bar1', 'foo/bar4'],
-      ],
     })
 
     // Should only return entities that exist in the data storage
@@ -1432,7 +1438,15 @@ describe('Traverse', () => {
   })
 
   test('find-children-default-root-entity', async () => {
-    const seneca = makeSeneca().use(Traverse)
+    const seneca = makeSeneca().use(Traverse, {
+      relations: {
+        parental: [
+          ['sys/user', 'user/settings'],
+          ['sys/user', 'user/project'],
+          ['user/project', 'project/release'],
+        ],
+      },
+    })
     await seneca.ready()
 
     const rootEntityId = 'user-456'
@@ -1452,25 +1466,20 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       // rootEntity omitted - should default to 'sys/user'
       rootEntityId: rootEntityId,
-      relations: [
-        ['sys/user', 'user/settings'],
-        ['sys/user', 'user/project'],
-        ['user/project', 'project/release'],
-      ],
     })
 
     expect(res.children).equal([
       {
         parent_id: rootEntityId,
-        child_id: settingsEnt.id,
-        parent_canon: 'sys/user',
-        child_canon: 'user/settings',
-      },
-      {
-        parent_id: rootEntityId,
         child_id: projectEnt.id,
         parent_canon: 'sys/user',
         child_canon: 'user/project',
+      },
+      {
+        parent_id: rootEntityId,
+        child_id: settingsEnt.id,
+        parent_canon: 'sys/user',
+        child_canon: 'user/settings',
       },
       {
         parent_id: projectEnt.id,
@@ -1482,7 +1491,15 @@ describe('Traverse', () => {
   })
 
   test('find-children-avoid-wrong-children', async () => {
-    const seneca = makeSeneca().use(Traverse)
+    const seneca = makeSeneca().use(Traverse, {
+      relations: {
+        parental: [
+          ['foo/bar0', 'foo/bar1'],
+          ['foo/bar0', 'foo/bar2'],
+          ['foo/bar1', 'foo/bar3'],
+        ],
+      },
+    })
     await seneca.ready()
 
     const rootEntityId = '123'
@@ -1507,11 +1524,6 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       rootEntity: 'foo/bar0',
       rootEntityId: rootEntityId,
-      relations: [
-        ['foo/bar0', 'foo/bar1'],
-        ['foo/bar0', 'foo/bar2'],
-        ['foo/bar1', 'foo/bar3'],
-      ],
     })
 
     // Should not include other parent children
@@ -1532,7 +1544,11 @@ describe('Traverse', () => {
   })
 
   test('find-children-single-entity-tree', async () => {
-    const seneca = makeSeneca().use(Traverse)
+    const seneca = makeSeneca().use(Traverse, {
+      relations: {
+        parental: [['foo/bar0', 'foo/bar1']],
+      },
+    })
     await seneca.ready()
 
     const rootEntityId = '123'
@@ -1544,7 +1560,6 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       rootEntity: 'foo/bar0',
       rootEntityId: rootEntityId,
-      relations: [['foo/bar0', 'foo/bar1']],
     })
 
     expect(res.children).equal([
@@ -1558,7 +1573,17 @@ describe('Traverse', () => {
   })
 
   test('find-children-deep-linear-chain', async () => {
-    const seneca = makeSeneca().use(Traverse)
+    const seneca = makeSeneca().use(Traverse, {
+      relations: {
+        parental: [
+          ['foo/bar0', 'foo/bar1'],
+          ['foo/bar1', 'foo/bar2'],
+          ['foo/bar2', 'foo/bar3'],
+          ['foo/bar3', 'foo/bar4'],
+          ['foo/bar4', 'foo/bar5'],
+        ],
+      },
+    })
     await seneca.ready()
 
     const rootEntityId = '123'
@@ -1586,13 +1611,6 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       rootEntity: 'foo/bar0',
       rootEntityId: rootEntityId,
-      relations: [
-        ['foo/bar0', 'foo/bar1'],
-        ['foo/bar1', 'foo/bar2'],
-        ['foo/bar2', 'foo/bar3'],
-        ['foo/bar3', 'foo/bar4'],
-        ['foo/bar4', 'foo/bar5'],
-      ],
     })
 
     expect(res.children).equal([
@@ -1635,6 +1653,14 @@ describe('Traverse', () => {
         'foo/bar2': 'custom0_id',
         'foo/bar3': 'custom1_test',
       },
+
+      relations: {
+        parental: [
+          ['foo/bar0', 'foo/bar1'],
+          ['foo/bar0', 'foo/bar2'],
+          ['foo/bar1', 'foo/bar3'],
+        ],
+      },
     })
     await seneca.ready()
 
@@ -1655,11 +1681,6 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       rootEntity: 'foo/bar0',
       rootEntityId: rootEntityId,
-      relations: [
-        ['foo/bar0', 'foo/bar1'],
-        ['foo/bar0', 'foo/bar2'],
-        ['foo/bar1', 'foo/bar3'],
-      ],
     })
 
     expect(res.children).equal([
@@ -1685,7 +1706,14 @@ describe('Traverse', () => {
   })
 
   test('find-children-multi-inst', async () => {
-    const seneca = makeSeneca().use(Traverse)
+    const seneca = makeSeneca().use(Traverse, {
+      relations: {
+        parental: [
+          ['foo/bar0', 'foo/bar1'],
+          ['foo/bar1', 'foo/bar2'],
+        ],
+      },
+    })
     await seneca.ready()
 
     const rootEntityId = '123'
@@ -1713,10 +1741,6 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       rootEntity: 'foo/bar0',
       rootEntityId: rootEntityId,
-      relations: [
-        ['foo/bar0', 'foo/bar1'],
-        ['foo/bar1', 'foo/bar2'],
-      ],
     })
 
     expect(res.children).equal([
@@ -1754,7 +1778,15 @@ describe('Traverse', () => {
   })
 
   test('find-children-multiple-inst-multi-levels', async () => {
-    const seneca = makeSeneca().use(Traverse)
+    const seneca = makeSeneca().use(Traverse, {
+      relations: {
+        parental: [
+          ['foo/bar0', 'foo/bar1'],
+          ['foo/bar1', 'foo/bar2'],
+          ['foo/bar2', 'foo/bar3'],
+        ],
+      },
+    })
     await seneca.ready()
 
     const rootEntityId = '123'
@@ -1806,11 +1838,6 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       rootEntity: 'foo/bar0',
       rootEntityId: rootEntityId,
-      relations: [
-        ['foo/bar0', 'foo/bar1'],
-        ['foo/bar1', 'foo/bar2'],
-        ['foo/bar2', 'foo/bar3'],
-      ],
     })
 
     expect(res.children).equal([

@@ -31,20 +31,20 @@ function Traverse(this: any, options: TraverseOptionsFull) {
 
   // const { Default } = seneca.valid
 
-  seneca.fix('sys:traverse').message(
-    'find:deps',
-    {
-      rootEntity: Optional(String),
-    },
-    msgFindDeps,
-  )
+  seneca
+    .fix('sys:traverse')
+    .message(
+      'find:deps',
+      {
+        rootEntity: Optional(String),
+      },
+      msgFindDeps,
+    )
     .message(
       'find:children',
       {
         rootEntity: Optional(String),
-        customRef: Optional(Object),
         rootEntityId: String,
-        relations: [[String, String]],
       },
       msgFindChildren,
     )
@@ -114,7 +114,6 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     msg: {
       rootEntity?: EntityID
       rootEntityId: string
-      relations: ParentChildRelation[]
     },
   ): Promise<{
     ok: boolean
@@ -123,7 +122,10 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     const rootEntity: EntityID = msg.rootEntity || options.rootEntity
     const rootEntityId = msg.rootEntityId
     const customRef = options.customRef
-    const relationsQueue = [...msg.relations]
+    const relationsQueueRes = await seneca.post('sys:traverse,find:deps', {
+      rootEntity,
+    })
+    const relationsQueue = relationsQueueRes.deps
 
     const result: ChildrenInstances[] = []
     const parentInstanceMap = new Map<EntityID, Set<string>>()
