@@ -27,7 +27,6 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     'find:deps',
     {
       rootEntity: Optional(String),
-      relations: Skip({ parental: [[String, String]] }),
     },
     msgFindDeps,
   )
@@ -38,14 +37,10 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     this: any,
     msg: {
       rootEntity?: EntityID
-      relations?: {
-        parental: Parental
-      }
     },
   ): Promise<{ ok: boolean; deps: ParentChildRelation[] }> {
     // const seneca = this
-    const allRelations: Parental =
-      msg.relations?.parental || options.relations.parental
+    const allRelations: Parental = options.relations.parental
     const rootEntity = msg.rootEntity || options.rootEntity
     const deps: ParentChildRelation[] = []
 

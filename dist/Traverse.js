@@ -7,13 +7,12 @@ function Traverse(options) {
     // const { Default } = seneca.valid
     seneca.fix('sys:traverse').message('find:deps', {
         rootEntity: (0, gubu_1.Optional)(String),
-        relations: (0, gubu_1.Skip)({ parental: [[String, String]] }),
     }, msgFindDeps);
     // Returns a sorted list of entity pairs starting from a given entity.
     // In breadth-first order, sorting first by level, then alphabetically in each level.
     async function msgFindDeps(msg) {
         // const seneca = this
-        const allRelations = msg.relations?.parental || options.relations.parental;
+        const allRelations = options.relations.parental;
         const rootEntity = msg.rootEntity || options.rootEntity;
         const deps = [];
         const parentChildrenMap = new Map();
