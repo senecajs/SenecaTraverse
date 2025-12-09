@@ -8,7 +8,7 @@ type Relation = [Entity, Entity]
 
 type Parental = Relation[]
 
-type ChildrenIntances = {
+type ChildrenInstances = {
   parent_id: string
   child_id: string
   parent_canon: Entity
@@ -114,6 +114,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     }
   }
 
+  // Return all discovered child instances with their parent relationship.
   async function msgFindChildren(
     this: any,
     msg: {
@@ -124,49 +125,57 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     },
   ): Promise<{
     ok: boolean
-    children: ChildrenIntances[]
+    children: ChildrenInstances[]
   }> {
-    const out: ChildrenIntances[] = []
     const rootEntity: Entity = msg.rootEntity || options.rootEntity
     const rootEntityId = msg.rootEntityId
+    const customRef = msg.customRef || {}
 
-    const relations = msg.relations
+    const relationsQueue = [...msg.relations]
 
-    const parentInstanceMap: Map<Entity, string[]> = new Map()
-    parentInstanceMap.set(rootEntity, [rootEntityId])
+    const result: ChildrenInstances[] = []
+    const parentInstanceMap = new Map<Entity, Set<string>>()
 
-    while (relations.length > 0) {
-      const relation = relations.shift()!
+    parentInstanceMap.set(rootEntity, new Set([rootEntityId]))
 
-      const parentCanon = relation[0]
-      const childCanon = relation[1]
+    for (const [parentCanon, childCanon] of relationsQueue) {
+      const parentInstances = parentInstanceMap.get(parentCanon)
 
-      const parentEntityName = getEntityName(parentCanon)
+      if (!parentInstances || parentInstances.size == 0) {
+        continue
+      }
 
       const foreignRef =
-        (msg.customRef && msg.customRef[childCanon]) || `${parentEntityName}_id`
+        customRef[childCanon] || `${getEntityName(parentCanon)}_id`
 
-      const parentInstances = parentInstanceMap.get(parentCanon) ?? []
+      if (!parentInstanceMap.has(childCanon)) {
+        parentInstanceMap.set(childCanon, new Set())
+      }
 
-      for (const parentId of parentInstances) {
-        const childInstances: {
-          entity$: string
-          id: string
-        }[] = await seneca.entity(childCanon).list$({
-          [foreignRef]: parentId,
-          fields$: ['id'],
-        })
+      const childInstancesSet = parentInstanceMap.get(childCanon)
 
+      const childQueryPromises = Array.from(parentInstances).map(
+        async (parentId) => {
+          const childInstances = await seneca.entity(childCanon).list$({
+            [foreignRef]: parentId,
+            fields$: ['id'],
+          })
+
+          return { parentId, childInstances }
+        },
+      )
+
+      const queryResults = await Promise.all(childQueryPromises)
+
+      for (const { parentId, childInstances } of queryResults) {
         for (const childInst of childInstances) {
-          if (!parentInstanceMap.has(childCanon)) {
-            parentInstanceMap.set(childCanon, [])
-          }
+          const childId = childInst.id
 
-          parentInstanceMap.get(childCanon)!.push(childInst.id)
+          childInstancesSet?.add(childId)
 
-          out.push({
+          result.push({
             parent_id: parentId,
-            child_id: childInst.id,
+            child_id: childId,
             parent_canon: parentCanon,
             child_canon: childCanon,
           })
@@ -176,7 +185,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
 
     return {
       ok: true,
-      children: out,
+      children: result,
     }
   }
 

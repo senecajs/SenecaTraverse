@@ -59,33 +59,40 @@ function Traverse(options) {
             deps,
         };
     }
+    // Return all discovered child instances with their parent relationship.
     async function msgFindChildren(msg) {
-        const out = [];
         const rootEntity = msg.rootEntity || options.rootEntity;
         const rootEntityId = msg.rootEntityId;
-        const relations = msg.relations;
+        const customRef = msg.customRef || {};
+        const relationsQueue = [...msg.relations];
+        const result = [];
         const parentInstanceMap = new Map();
-        parentInstanceMap.set(rootEntity, [rootEntityId]);
-        while (relations.length > 0) {
-            const relation = relations.shift();
-            const parentCanon = relation[0];
-            const childCanon = relation[1];
-            const parentEntityName = getEntityName(parentCanon);
-            const foreignRef = (msg.customRef && msg.customRef[childCanon]) || `${parentEntityName}_id`;
-            const parentInstances = parentInstanceMap.get(parentCanon) ?? [];
-            for (const parentId of parentInstances) {
+        parentInstanceMap.set(rootEntity, new Set([rootEntityId]));
+        for (const [parentCanon, childCanon] of relationsQueue) {
+            const parentInstances = parentInstanceMap.get(parentCanon);
+            if (!parentInstances || parentInstances.size == 0) {
+                continue;
+            }
+            const foreignRef = customRef[childCanon] || `${getEntityName(parentCanon)}_id`;
+            if (!parentInstanceMap.has(childCanon)) {
+                parentInstanceMap.set(childCanon, new Set());
+            }
+            const childInstancesSet = parentInstanceMap.get(childCanon);
+            const childQueryPromises = Array.from(parentInstances).map(async (parentId) => {
                 const childInstances = await seneca.entity(childCanon).list$({
                     [foreignRef]: parentId,
                     fields$: ['id'],
                 });
+                return { parentId, childInstances };
+            });
+            const queryResults = await Promise.all(childQueryPromises);
+            for (const { parentId, childInstances } of queryResults) {
                 for (const childInst of childInstances) {
-                    if (!parentInstanceMap.has(childCanon)) {
-                        parentInstanceMap.set(childCanon, []);
-                    }
-                    parentInstanceMap.get(childCanon).push(childInst.id);
-                    out.push({
+                    const childId = childInst.id;
+                    childInstancesSet?.add(childId);
+                    result.push({
                         parent_id: parentId,
-                        child_id: childInst.id,
+                        child_id: childId,
                         parent_canon: parentCanon,
                         child_canon: childCanon,
                     });
@@ -94,7 +101,7 @@ function Traverse(options) {
         }
         return {
             ok: true,
-            children: out,
+            children: result,
         };
     }
     function compareRelations(relations) {
