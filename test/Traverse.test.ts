@@ -1272,6 +1272,216 @@ describe('Traverse', () => {
       },
     ])
   })
+
+  test('find-children-multi-inst', async () => {
+    const seneca = makeSeneca().use(Traverse)
+    await seneca.ready()
+
+    const rootEntityId = '123'
+
+    const bar1Ent1 = await seneca.entity('foo/bar1').save$({
+      bar0_id: rootEntityId,
+    })
+
+    const bar1Ent2 = await seneca.entity('foo/bar1').save$({
+      bar0_id: rootEntityId,
+    })
+
+    const bar1Ent3 = await seneca.entity('foo/bar1').save$({
+      bar0_id: rootEntityId,
+    })
+
+    const bar2Ent1 = await seneca.entity('foo/bar2').save$({
+      bar1_id: bar1Ent1.id,
+    })
+
+    const bar2Ent2 = await seneca.entity('foo/bar2').save$({
+      bar1_id: bar1Ent2.id,
+    })
+
+    const res = await seneca.post('sys:traverse,find:children', {
+      rootEntity: 'foo/bar0',
+      rootEntityId: rootEntityId,
+      relations: [
+        ['foo/bar0', 'foo/bar1'],
+        ['foo/bar1', 'foo/bar2'],
+      ],
+    })
+
+    expect(res.children).equal([
+      {
+        parent_id: rootEntityId,
+        child_id: bar1Ent1.id,
+        parent_canon: 'foo/bar0',
+        child_canon: 'foo/bar1',
+      },
+      {
+        parent_id: rootEntityId,
+        child_id: bar1Ent2.id,
+        parent_canon: 'foo/bar0',
+        child_canon: 'foo/bar1',
+      },
+      {
+        parent_id: rootEntityId,
+        child_id: bar1Ent3.id,
+        parent_canon: 'foo/bar0',
+        child_canon: 'foo/bar1',
+      },
+      {
+        parent_id: bar1Ent1.id,
+        child_id: bar2Ent1.id,
+        parent_canon: 'foo/bar1',
+        child_canon: 'foo/bar2',
+      },
+      {
+        parent_id: bar1Ent2.id,
+        child_id: bar2Ent2.id,
+        parent_canon: 'foo/bar1',
+        child_canon: 'foo/bar2',
+      },
+    ])
+  })
+
+  test('find-children-multiple-inst-multi-levels', async () => {
+    const seneca = makeSeneca().use(Traverse)
+    await seneca.ready()
+
+    const rootEntityId = '123'
+
+    const bar1Ent1 = await seneca.entity('foo/bar1').save$({
+      bar0_id: rootEntityId,
+    })
+
+    const bar1Ent2 = await seneca.entity('foo/bar1').save$({
+      bar0_id: rootEntityId,
+    })
+
+    const bar1Ent3 = await seneca.entity('foo/bar1').save$({
+      bar0_id: rootEntityId,
+    })
+
+    const bar2Ent1_1 = await seneca.entity('foo/bar2').save$({
+      bar1_id: bar1Ent1.id,
+    })
+
+    const bar2Ent1_2 = await seneca.entity('foo/bar2').save$({
+      bar1_id: bar1Ent1.id,
+    })
+
+    const bar2Ent2_1 = await seneca.entity('foo/bar2').save$({
+      bar1_id: bar1Ent2.id,
+    })
+
+    const bar2Ent2_2 = await seneca.entity('foo/bar2').save$({
+      bar1_id: bar1Ent2.id,
+    })
+
+    const bar2Ent3_1 = await seneca.entity('foo/bar2').save$({
+      bar1_id: bar1Ent3.id,
+    })
+
+    const bar3Ent1_1_1 = await seneca.entity('foo/bar3').save$({
+      bar2_id: bar2Ent1_1.id,
+    })
+
+    const bar3Ent1_1_2 = await seneca.entity('foo/bar3').save$({
+      bar2_id: bar2Ent1_1.id,
+    })
+
+    const bar3Ent2_2_1 = await seneca.entity('foo/bar3').save$({
+      bar2_id: bar2Ent2_2.id,
+    })
+
+    const res = await seneca.post('sys:traverse,find:children', {
+      rootEntity: 'foo/bar0',
+      rootEntityId: rootEntityId,
+      relations: [
+        ['foo/bar0', 'foo/bar1'],
+        ['foo/bar1', 'foo/bar2'],
+        ['foo/bar2', 'foo/bar3'],
+      ],
+    })
+
+    expect(res.children).equal([
+      // Level 1: All bar1 children of bar0
+      {
+        parent_id: rootEntityId,
+        child_id: bar1Ent1.id,
+        parent_canon: 'foo/bar0',
+        child_canon: 'foo/bar1',
+      },
+      {
+        parent_id: rootEntityId,
+        child_id: bar1Ent2.id,
+        parent_canon: 'foo/bar0',
+        child_canon: 'foo/bar1',
+      },
+      {
+        parent_id: rootEntityId,
+        child_id: bar1Ent3.id,
+        parent_canon: 'foo/bar0',
+        child_canon: 'foo/bar1',
+      },
+
+      // Level 2: All bar2 children of bar1Ent1
+      {
+        parent_id: bar1Ent1.id,
+        child_id: bar2Ent1_1.id,
+        parent_canon: 'foo/bar1',
+        child_canon: 'foo/bar2',
+      },
+      {
+        parent_id: bar1Ent1.id,
+        child_id: bar2Ent1_2.id,
+        parent_canon: 'foo/bar1',
+        child_canon: 'foo/bar2',
+      },
+
+      // Level 2: All bar2 children of bar1Ent2
+      {
+        parent_id: bar1Ent2.id,
+        child_id: bar2Ent2_1.id,
+        parent_canon: 'foo/bar1',
+        child_canon: 'foo/bar2',
+      },
+      {
+        parent_id: bar1Ent2.id,
+        child_id: bar2Ent2_2.id,
+        parent_canon: 'foo/bar1',
+        child_canon: 'foo/bar2',
+      },
+
+      // Level 2: All bar2 children of bar1Ent3
+      {
+        parent_id: bar1Ent3.id,
+        child_id: bar2Ent3_1.id,
+        parent_canon: 'foo/bar1',
+        child_canon: 'foo/bar2',
+      },
+
+      // Level 3: All bar3 children of bar2Ent1_1
+      {
+        parent_id: bar2Ent1_1.id,
+        child_id: bar3Ent1_1_1.id,
+        parent_canon: 'foo/bar2',
+        child_canon: 'foo/bar3',
+      },
+      {
+        parent_id: bar2Ent1_1.id,
+        child_id: bar3Ent1_1_2.id,
+        parent_canon: 'foo/bar2',
+        child_canon: 'foo/bar3',
+      },
+
+      // Level 3: All bar3 children of bar2Ent2_2
+      {
+        parent_id: bar2Ent2_2.id,
+        child_id: bar3Ent2_2_1.id,
+        parent_canon: 'foo/bar2',
+        child_canon: 'foo/bar3',
+      },
+    ])
+  })
 })
 
 function makeSeneca(opts: any = {}) {
