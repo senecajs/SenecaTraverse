@@ -2,22 +2,22 @@
 
 import { Optional, Skip } from 'gubu'
 
-type Entity = string
+type EntityID = string
 
-type Relation = [Entity, Entity]
+type ParentChildRelation = [EntityID, EntityID]
 
-type Parental = Relation[]
+type Parental = ParentChildRelation[]
 
 type ChildrenInstances = {
   parent_id: string
   child_id: string
-  parent_canon: Entity
-  child_canon: Entity
+  parent_canon: EntityID
+  child_canon: EntityID
 }
 
 type TraverseOptionsFull = {
   debug: boolean
-  rootEntity: Entity
+  rootEntity: EntityID
   relations: {
     parental: Parental
   }
@@ -56,19 +56,19 @@ function Traverse(this: any, options: TraverseOptionsFull) {
   async function msgFindDeps(
     this: any,
     msg: {
-      rootEntity?: Entity
+      rootEntity?: EntityID
       relations?: {
         parental: Parental
       }
     },
-  ): Promise<{ ok: boolean; deps: Relation[] }> {
+  ): Promise<{ ok: boolean; deps: ParentChildRelation[] }> {
     // const seneca = this
     const allRelations: Parental =
       msg.relations?.parental || options.relations.parental
     const rootEntity = msg.rootEntity || options.rootEntity
-    const deps: Relation[] = []
+    const deps: ParentChildRelation[] = []
 
-    const parentChildrenMap: Map<Entity, Entity[]> = new Map()
+    const parentChildrenMap: Map<EntityID, EntityID[]> = new Map()
 
     for (const [parent, child] of allRelations) {
       if (!parentChildrenMap.has(parent)) {
@@ -82,12 +82,12 @@ function Traverse(this: any, options: TraverseOptionsFull) {
       children.sort()
     }
 
-    const visitedEntitiesSet: Set<Entity> = new Set([rootEntity])
-    let currentLevel: Entity[] = [rootEntity]
+    const visitedEntitiesSet: Set<EntityID> = new Set([rootEntity])
+    let currentLevel: EntityID[] = [rootEntity]
 
     while (currentLevel.length > 0) {
-      const nextLevel: Entity[] = []
-      let levelDeps: Relation[] = []
+      const nextLevel: EntityID[] = []
+      let levelDeps: ParentChildRelation[] = []
 
       for (const parent of currentLevel) {
         const children = parentChildrenMap.get(parent) || []
@@ -118,22 +118,22 @@ function Traverse(this: any, options: TraverseOptionsFull) {
   async function msgFindChildren(
     this: any,
     msg: {
-      rootEntity?: Entity
-      customRef?: Record<Entity, string>
+      rootEntity?: EntityID
+      customRef?: Record<EntityID, string>
       rootEntityId: string
-      relations: Relation[]
+      relations: ParentChildRelation[]
     },
   ): Promise<{
     ok: boolean
     children: ChildrenInstances[]
   }> {
-    const rootEntity: Entity = msg.rootEntity || options.rootEntity
+    const rootEntity: EntityID = msg.rootEntity || options.rootEntity
     const rootEntityId = msg.rootEntityId
     const customRef = msg.customRef || {}
     const relationsQueue = [...msg.relations]
 
     const result: ChildrenInstances[] = []
-    const parentInstanceMap = new Map<Entity, Set<string>>()
+    const parentInstanceMap = new Map<EntityID, Set<string>>()
 
     parentInstanceMap.set(rootEntity, new Set([rootEntityId]))
 
@@ -188,7 +188,9 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     }
   }
 
-  function compareRelations(relations: Relation[]): Relation[] {
+  function compareRelations(
+    relations: ParentChildRelation[],
+  ): ParentChildRelation[] {
     return [...relations].sort(
       (a, b) =>
         a[0].localeCompare(b[0], undefined, { numeric: true }) ||
@@ -196,7 +198,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     )
   }
 
-  function getEntityName(entity: Entity): string {
+  function getEntityName(entity: EntityID): string {
     return entity.split('/')[1] ?? ''
   }
 }
