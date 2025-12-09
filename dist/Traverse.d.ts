@@ -1,6 +1,6 @@
 type EntityID = string;
-type Relation = [EntityID, EntityID];
-type Parental = Relation[];
+type ParentChildRelation = [EntityID, EntityID];
+type Parental = ParentChildRelation[];
 type TraverseOptionsFull = {
     debug: boolean;
     rootEntity: EntityID;

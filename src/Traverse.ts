@@ -4,9 +4,9 @@ import { Optional, Skip } from 'gubu'
 
 type EntityID = string
 
-type Relation = [EntityID, EntityID]
+type ParentChildRelation = [EntityID, EntityID]
 
-type Parental = Relation[]
+type Parental = ParentChildRelation[]
 
 type TraverseOptionsFull = {
   debug: boolean
@@ -42,12 +42,12 @@ function Traverse(this: any, options: TraverseOptionsFull) {
         parental: Parental
       }
     },
-  ): Promise<{ ok: boolean; deps: Relation[] }> {
+  ): Promise<{ ok: boolean; deps: ParentChildRelation[] }> {
     // const seneca = this
     const allRelations: Parental =
       msg.relations?.parental || options.relations.parental
     const rootEntity = msg.rootEntity || options.rootEntity
-    const deps: Relation[] = []
+    const deps: ParentChildRelation[] = []
 
     const parentChildrenMap: Map<EntityID, EntityID[]> = new Map()
 
@@ -68,7 +68,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
 
     while (currentLevel.length > 0) {
       const nextLevel: EntityID[] = []
-      let levelDeps: Relation[] = []
+      let levelDeps: ParentChildRelation[] = []
 
       for (const parent of currentLevel) {
         const children = parentChildrenMap.get(parent) || []
@@ -95,7 +95,9 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     }
   }
 
-  function compareRelations(relations: Relation[]): Relation[] {
+  function compareRelations(
+    relations: ParentChildRelation[],
+  ): ParentChildRelation[] {
     return [...relations].sort(
       (a, b) =>
         a[0].localeCompare(b[0], undefined, { numeric: true }) ||
