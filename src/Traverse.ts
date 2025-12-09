@@ -2,15 +2,15 @@
 
 import { Optional, Skip } from 'gubu'
 
-type Entity = string
+type EntityID = string
 
-type Relation = [Entity, Entity]
+type Relation = [EntityID, EntityID]
 
 type Parental = Relation[]
 
 type TraverseOptionsFull = {
   debug: boolean
-  rootEntity: Entity
+  rootEntity: EntityID
   relations: {
     parental: Parental
   }
@@ -37,7 +37,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
   async function msgFindDeps(
     this: any,
     msg: {
-      rootEntity?: Entity
+      rootEntity?: EntityID
       relations?: {
         parental: Parental
       }
@@ -49,7 +49,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     const rootEntity = msg.rootEntity || options.rootEntity
     const deps: Relation[] = []
 
-    const parentChildrenMap: Map<Entity, Entity[]> = new Map()
+    const parentChildrenMap: Map<EntityID, EntityID[]> = new Map()
 
     for (const [parent, child] of allRelations) {
       if (!parentChildrenMap.has(parent)) {
@@ -63,11 +63,11 @@ function Traverse(this: any, options: TraverseOptionsFull) {
       children.sort()
     }
 
-    const visitedEntitiesSet: Set<Entity> = new Set([rootEntity])
-    let currentLevel: Entity[] = [rootEntity]
+    const visitedEntitiesSet: Set<EntityID> = new Set([rootEntity])
+    let currentLevel: EntityID[] = [rootEntity]
 
     while (currentLevel.length > 0) {
-      const nextLevel: Entity[] = []
+      const nextLevel: EntityID[] = []
       let levelDeps: Relation[] = []
 
       for (const parent of currentLevel) {
