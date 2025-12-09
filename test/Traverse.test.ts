@@ -1729,7 +1729,12 @@ describe('Traverse', () => {
   })
 
   test('find-children-custom-key', async () => {
-    const seneca = makeSeneca().use(Traverse)
+    const seneca = makeSeneca().use(Traverse, {
+      customRef: {
+        'foo/bar2': 'custom0_id',
+        'foo/bar3': 'custom1_test',
+      },
+    })
     await seneca.ready()
 
     const rootEntityId = '123'
@@ -1749,10 +1754,6 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,find:children', {
       rootEntity: 'foo/bar0',
       rootEntityId: rootEntityId,
-      customRef: {
-        'foo/bar2': 'custom0_id',
-        'foo/bar3': 'custom1_test',
-      },
       relations: [
         ['foo/bar0', 'foo/bar1'],
         ['foo/bar0', 'foo/bar2'],

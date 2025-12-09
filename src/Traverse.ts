@@ -21,6 +21,7 @@ type TraverseOptionsFull = {
   relations: {
     parental: Parental
   }
+  customRef: Record<EntityID, string>
 }
 
 export type TraverseOptions = Partial<TraverseOptionsFull>
@@ -119,7 +120,6 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     this: any,
     msg: {
       rootEntity?: EntityID
-      customRef?: Record<EntityID, string>
       rootEntityId: string
       relations: ParentChildRelation[]
     },
@@ -129,7 +129,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
   }> {
     const rootEntity: EntityID = msg.rootEntity || options.rootEntity
     const rootEntityId = msg.rootEntityId
-    const customRef = msg.customRef || {}
+    const customRef = options.customRef
     const relationsQueue = [...msg.relations]
 
     const result: ChildrenInstances[] = []
@@ -211,6 +211,7 @@ const defaults: TraverseOptionsFull = {
   relations: {
     parental: [],
   },
+  customRef: {},
 }
 
 Object.assign(Traverse, { defaults })

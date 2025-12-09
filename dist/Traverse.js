@@ -63,7 +63,7 @@ function Traverse(options) {
     async function msgFindChildren(msg) {
         const rootEntity = msg.rootEntity || options.rootEntity;
         const rootEntityId = msg.rootEntityId;
-        const customRef = msg.customRef || {};
+        const customRef = options.customRef;
         const relationsQueue = [...msg.relations];
         const result = [];
         const parentInstanceMap = new Map();
@@ -120,6 +120,7 @@ const defaults = {
     relations: {
         parental: [],
     },
+    customRef: {},
 };
 Object.assign(Traverse, { defaults });
 exports.default = Traverse;

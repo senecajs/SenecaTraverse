@@ -1527,7 +1527,12 @@ const __2 = __importDefault(require(".."));
         ]);
     });
     (0, node_test_1.test)('find-children-custom-key', async () => {
-        const seneca = makeSeneca().use(__2.default);
+        const seneca = makeSeneca().use(__2.default, {
+            customRef: {
+                'foo/bar2': 'custom0_id',
+                'foo/bar3': 'custom1_test',
+            },
+        });
         await seneca.ready();
         const rootEntityId = '123';
         const bar1Ent = await seneca.entity('foo/bar1').save$({
@@ -1542,10 +1547,6 @@ const __2 = __importDefault(require(".."));
         const res = await seneca.post('sys:traverse,find:children', {
             rootEntity: 'foo/bar0',
             rootEntityId: rootEntityId,
-            customRef: {
-                'foo/bar2': 'custom0_id',
-                'foo/bar3': 'custom1_test',
-            },
             relations: [
                 ['foo/bar0', 'foo/bar1'],
                 ['foo/bar0', 'foo/bar2'],
