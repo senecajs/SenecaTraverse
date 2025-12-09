@@ -114,7 +114,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     }
   }
 
-  // Return all discovered child instances with their parent relationship.
+  // Returns all discovered child instances with their parent relationship.
   async function msgFindChildren(
     this: any,
     msg: {
@@ -130,7 +130,6 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     const rootEntity: Entity = msg.rootEntity || options.rootEntity
     const rootEntityId = msg.rootEntityId
     const customRef = msg.customRef || {}
-
     const relationsQueue = [...msg.relations]
 
     const result: ChildrenInstances[] = []
@@ -141,7 +140,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     for (const [parentCanon, childCanon] of relationsQueue) {
       const parentInstances = parentInstanceMap.get(parentCanon)
 
-      if (!parentInstances || parentInstances.size == 0) {
+      if (!parentInstances || parentInstances.size === 0) {
         continue
       }
 
@@ -171,7 +170,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
         for (const childInst of childInstances) {
           const childId = childInst.id
 
-          childInstancesSet?.add(childId)
+          childInstancesSet!.add(childId)
 
           result.push({
             parent_id: parentId,

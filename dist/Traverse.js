@@ -59,7 +59,7 @@ function Traverse(options) {
             deps,
         };
     }
-    // Return all discovered child instances with their parent relationship.
+    // Returns all discovered child instances with their parent relationship.
     async function msgFindChildren(msg) {
         const rootEntity = msg.rootEntity || options.rootEntity;
         const rootEntityId = msg.rootEntityId;
@@ -70,7 +70,7 @@ function Traverse(options) {
         parentInstanceMap.set(rootEntity, new Set([rootEntityId]));
         for (const [parentCanon, childCanon] of relationsQueue) {
             const parentInstances = parentInstanceMap.get(parentCanon);
-            if (!parentInstances || parentInstances.size == 0) {
+            if (!parentInstances || parentInstances.size === 0) {
                 continue;
             }
             const foreignRef = customRef[childCanon] || `${getEntityName(parentCanon)}_id`;
@@ -89,7 +89,7 @@ function Traverse(options) {
             for (const { parentId, childInstances } of queryResults) {
                 for (const childInst of childInstances) {
                     const childId = childInst.id;
-                    childInstancesSet?.add(childId);
+                    childInstancesSet.add(childId);
                     result.push({
                         parent_id: parentId,
                         child_id: childId,
