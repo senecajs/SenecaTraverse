@@ -33,6 +33,19 @@ type RunEntity = {
   failed_tasks: number
 } & Entity
 
+type TaskEntity = {
+  id: string
+  run_id: string
+  parent_id: string
+  child_id: string
+  parent_canon: EntityID
+  child_canon: EntityID
+  status: 'pending' | 'dispatched' | 'done' | 'failed'
+  retry: number
+  task_msg: string
+  dispatched_at?: number
+} & Entity
+
 interface FindChildren {
   ok: boolean
   children: ChildInstance[]
@@ -64,6 +77,13 @@ function Traverse(this: any, options: TraverseOptionsFull) {
         taskMsg: String,
       },
       msgCreateTaskRun,
+    )
+    .message(
+      'on:task,do:execute',
+      {
+        taskId: String,
+      },
+      msgTaskExecute,
     )
     .message(
       'find:deps',
@@ -135,6 +155,38 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     await runEnt.save$()
 
     return { ok: true }
+  }
+
+  // Execute a single task updating its
+  // status afterwards.
+  async function msgTaskExecute(
+    this: any,
+    msg: {
+      taskId: string
+    },
+  ): Promise<{
+    ok: boolean
+    task: TaskEntity | null
+  }> {
+    const taskId = msg.taskId
+
+    const taskEnt: TaskEntity = await seneca.entity('sys/traversetask').load$({
+      id: taskId,
+    })
+
+    if (!taskEnt?.id) {
+      return { ok: false, task: null }
+    }
+
+    taskEnt.status = 'dispatched'
+    taskEnt.dispatched_at = Date.now()
+    await taskEnt.save$()
+
+    seneca.post(taskEnt.task_msg, {
+      taskEnt: taskEnt,
+    })
+
+    return { ok: true, task: taskEnt }
   }
 
   // Returns a sorted list of entity pairs starting from a given entity.

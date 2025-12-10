@@ -2026,8 +2026,8 @@ describe('Traverse', () => {
           ],
         },
       })
-      .message('aim:ent,print:id', async function (msg: any) {
-        console.log('test', msg)
+      .message('aim:task,print:id', async function (msg: any) {
+        return
       })
 
     await seneca.ready()
@@ -2051,7 +2051,7 @@ describe('Traverse', () => {
     const res = await seneca.post('sys:traverse,on:run,do:create', {
       rootEntity,
       rootEntityId: rootEntityId,
-      taskMsg: 'aim:ent,print:id',
+      taskMsg: 'aim:task,print:id',
     })
 
     expect(res.ok).equal(true)
@@ -2065,10 +2065,89 @@ describe('Traverse', () => {
     expect(runEnt.root_entity).equal(rootEntity)
     expect(runEnt.root_id).equal(rootEntityId)
     expect(runEnt.status).equal('created')
-    expect(runEnt.task_msg).equal('aim:ent,print:id')
+    expect(runEnt.task_msg).equal('aim:task,print:id')
     expect(runEnt.total_tasks).equal(3)
     expect(runEnt.completed_tasks).equal(0)
     expect(runEnt.failed_tasks).equal(0)
+  })
+
+  test('execute-task', async () => {
+    const seneca = makeSeneca()
+      .use(Traverse, {
+        relations: {
+          parental: [
+            ['foo/bar0', 'foo/bar1'],
+            ['foo/bar0', 'foo/bar2'],
+            ['foo/bar0', 'foo/zed0'],
+            ['foo/bar1', 'foo/bar4'],
+            ['foo/bar1', 'foo/bar5'],
+            ['foo/bar2', 'foo/bar3'],
+            ['foo/bar2', 'foo/bar9'],
+            ['foo/zed0', 'foo/zed1'],
+            ['foo/bar3', 'foo/bar6'],
+            ['foo/bar4', 'foo/bar7'],
+            ['foo/bar5', 'foo/bar8'],
+            ['foo/zed1', 'foo/zed2'],
+            ['foo/bar6', 'foo/bar10'],
+            ['foo/bar7', 'foo/bar11'],
+          ],
+        },
+      })
+      .message('aim:task,print:id', async function (msg: any) {
+        const taskEnt = msg.taskEnt
+
+        // console.log('task_id', taskEnt.id)
+
+        taskEnt.status = 'done'
+        await taskEnt.save$()
+      })
+
+    await seneca.ready()
+
+    const rootEntityId = '123'
+    const rootEntity = 'foo/bar0'
+
+    // only level 1 entities actually exist
+    await seneca.entity('foo/bar1').save$({
+      bar0_id: rootEntityId,
+    })
+
+    await seneca.entity('foo/bar2').save$({
+      bar0_id: rootEntityId,
+    })
+
+    await seneca.entity('foo/zed0').save$({
+      bar0_id: rootEntityId,
+    })
+
+    await seneca.post('sys:traverse,on:run,do:create', {
+      rootEntity,
+      rootEntityId: rootEntityId,
+      taskMsg: 'aim:task,print:id',
+    })
+
+    const taskList = await seneca.entity('sys/traversetask').list$()
+    // console.log('task list ', taskList)
+
+    const runRes = await seneca.entity('sys/traverse').list$()
+    const runEnt = runRes[0]
+
+    const res = await seneca.post('sys:traverse,on:task,do:execute', {
+      taskId: taskList[0].id,
+    })
+
+    expect(res.ok).equal(true)
+
+    const taskData = res.task
+
+    expect(taskData.run_id).equal(runEnt.id)
+    expect(taskData.status).equal('dispatched')
+
+    const taskEnt = await seneca.entity('sys/traversetask').load$({
+      id: taskData.id,
+    })
+
+    expect(taskEnt.status).equal('done')
   })
 })
 

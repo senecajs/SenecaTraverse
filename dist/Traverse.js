@@ -12,6 +12,9 @@ function Traverse(options) {
         rootEntityId: String,
         taskMsg: String,
     }, msgCreateTaskRun)
+        .message('on:task,do:execute', {
+        taskId: String,
+    }, msgTaskExecute)
         .message('find:deps', {
         rootEntity: (0, gubu_1.Optional)(String),
     }, msgFindDeps)
@@ -54,6 +57,24 @@ function Traverse(options) {
         runEnt.total_tasks = totalTasks;
         await runEnt.save$();
         return { ok: true };
+    }
+    // Execute a single task updating its
+    // status afterwards.
+    async function msgTaskExecute(msg) {
+        const taskId = msg.taskId;
+        const taskEnt = await seneca.entity('sys/traversetask').load$({
+            id: taskId,
+        });
+        if (!taskEnt?.id) {
+            return { ok: false, task: null };
+        }
+        taskEnt.status = 'dispatched';
+        taskEnt.dispatched_at = Date.now();
+        await taskEnt.save$();
+        seneca.post(taskEnt.task_msg, {
+            taskEnt: taskEnt,
+        });
+        return { ok: true, task: taskEnt };
     }
     // Returns a sorted list of entity pairs starting from a given entity.
     // In breadth-first order, sorting first by level, then alphabetically in each level.
