@@ -8,7 +8,7 @@ type ParentChildRelation = [EntityID, EntityID]
 
 type Parental = ParentChildRelation[]
 
-type ChildrenInstances = {
+type ChildInstance = {
   parent_id: string
   child_id: string
   parent_canon: EntityID
@@ -117,7 +117,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     },
   ): Promise<{
     ok: boolean
-    children: ChildrenInstances[]
+    children: ChildInstance[]
   }> {
     const rootEntity: EntityID = msg.rootEntity || options.rootEntity
     const rootEntityId = msg.rootEntityId
@@ -127,7 +127,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     })
     const relationsQueue = relationsQueueRes.deps
 
-    const result: ChildrenInstances[] = []
+    const result: ChildInstance[] = []
     const parentInstanceMap = new Map<EntityID, Set<string>>()
 
     parentInstanceMap.set(rootEntity, new Set([rootEntityId]))
