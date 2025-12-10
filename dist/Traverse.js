@@ -12,6 +12,9 @@ function Traverse(options) {
         rootEntityId: String,
         taskMsg: String,
     }, msgCreateTaskRun)
+        .message('on:run,do:start', {
+        runId: String,
+    }, msgRunStart)
         .message('on:task,do:execute', {
         taskId: String,
     }, msgTaskExecute)
@@ -22,6 +25,33 @@ function Traverse(options) {
         rootEntity: (0, gubu_1.Optional)(String),
         rootEntityId: String,
     }, msgFindChildren);
+    //  Trigger a Run execution
+    async function msgRunStart(msg) {
+        const runId = msg.runId;
+        const runEnt = await seneca.entity('sys/traverse').load$({
+            id: runId,
+        });
+        if (!runEnt?.id) {
+            return { ok: false };
+        }
+        if (runEnt.status === 'completed') {
+            return { ok: true };
+        }
+        runEnt.status = 'active';
+        runEnt.started_at = Date.now();
+        const tasks = await seneca.entity('sys/traversetask').list$({
+            run_id: runId,
+            status: 'pending',
+        });
+        let dispatched = 0;
+        for (const task of tasks) {
+            await seneca.post('sys:traverse,on:task,do:execute', {
+                taskId: task.id,
+            });
+            dispatched++;
+        }
+        return { ok: true, run: runEnt, dispatched };
+    }
     // Create a task entity for each child instance
     async function msgCreateTaskRun(msg) {
         const taskMsg = msg.taskMsg;
@@ -56,7 +86,7 @@ function Traverse(options) {
         }
         runEnt.total_tasks = totalTasks;
         await runEnt.save$();
-        return { ok: true };
+        return { ok: true, run: runEnt };
     }
     // Execute a single task updating its
     // status afterwards.

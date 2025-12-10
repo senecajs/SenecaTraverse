@@ -27,10 +27,11 @@ type RunEntity = {
   root_entity: EntityID
   root_id: string
   task_msg: string
-  status: 'created' | 'completed' | 'failed'
+  status: 'created' | 'active' | 'completed' | 'failed'
   total_tasks: number
   completed_tasks: number
   failed_tasks: number
+  started_at?: number
 } & Entity
 
 type TaskEntity = {
@@ -79,6 +80,13 @@ function Traverse(this: any, options: TraverseOptionsFull) {
       msgCreateTaskRun,
     )
     .message(
+      'on:run,do:start',
+      {
+        runId: String,
+      },
+      msgRunStart,
+    )
+    .message(
       'on:task,do:execute',
       {
         taskId: String,
@@ -101,6 +109,51 @@ function Traverse(this: any, options: TraverseOptionsFull) {
       msgFindChildren,
     )
 
+  //  Trigger a Run execution
+  async function msgRunStart(
+    this: any,
+    msg: {
+      runId: string
+    },
+  ): Promise<{
+    ok: boolean
+    run?: RunEntity
+    dispatched?: number
+  }> {
+    const runId = msg.runId
+
+    const runEnt: RunEntity = await seneca.entity('sys/traverse').load$({
+      id: runId,
+    })
+
+    if (!runEnt?.id) {
+      return { ok: false }
+    }
+
+    if (runEnt.status === 'completed') {
+      return { ok: true }
+    }
+
+    runEnt.status = 'active'
+    runEnt.started_at = Date.now()
+
+    const tasks: TaskEntity[] = await seneca.entity('sys/traversetask').list$({
+      run_id: runId,
+      status: 'pending',
+    })
+
+    let dispatched = 0
+
+    for (const task of tasks) {
+      await seneca.post('sys:traverse,on:task,do:execute', {
+        taskId: task.id,
+      })
+      dispatched++
+    }
+
+    return { ok: true, run: runEnt, dispatched }
+  }
+
   // Create a task entity for each child instance
   async function msgCreateTaskRun(
     this: any,
@@ -111,6 +164,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     },
   ): Promise<{
     ok: boolean
+    run: RunEntity
   }> {
     const taskMsg = msg.taskMsg
     const rootEntity = msg.rootEntity || options.rootEntity
@@ -154,7 +208,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     runEnt.total_tasks = totalTasks
     await runEnt.save$()
 
-    return { ok: true }
+    return { ok: true, run: runEnt }
   }
 
   // Execute a single task updating its
