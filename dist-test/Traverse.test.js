@@ -1921,12 +1921,12 @@ const __2 = __importDefault(require(".."));
         await seneca.entity('foo/zed0').save$({
             bar0_id: rootEntityId,
         });
-        const creatTaskRes = await seneca.post('sys:traverse,on:run,do:create', {
+        const createTaskRes = await seneca.post('sys:traverse,on:run,do:create', {
             rootEntity,
             rootEntityId: rootEntityId,
             taskMsg: 'aim:task,print:id',
         });
-        const runEnt = creatTaskRes.run;
+        const runEnt = createTaskRes.run;
         let tasks = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
         });
