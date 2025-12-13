@@ -50,8 +50,10 @@ function Traverse(this: any, options: TraverseOptionsFull) {
       msgFindChildren,
     )
 
-  // Returns a sorted list of entity pairs starting from a given entity.
-  // In breadth-first order, sorting first by level, then alphabetically in each level.
+  // Returns a sorted list of entity pairs
+  // starting from a given entity.
+  // In breadth-first order, sorting first by level,
+  // then alphabetically in each level.
   async function msgFindDeps(
     this: any,
     msg: {
@@ -109,7 +111,8 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     }
   }
 
-  // Returns all discovered child instances with their parent relationship.
+  // Returns all discovered child
+  // instances with their parent relationship.
   async function msgFindChildren(
     this: any,
     msg: {

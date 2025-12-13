@@ -14,8 +14,10 @@ function Traverse(options) {
         rootEntity: (0, gubu_1.Optional)(String),
         rootEntityId: String,
     }, msgFindChildren);
-    // Returns a sorted list of entity pairs starting from a given entity.
-    // In breadth-first order, sorting first by level, then alphabetically in each level.
+    // Returns a sorted list of entity pairs
+    // starting from a given entity.
+    // In breadth-first order, sorting first by level,
+    // then alphabetically in each level.
     async function msgFindDeps(msg) {
         // const seneca = this
         const allRelations = options.relations.parental;
@@ -56,7 +58,8 @@ function Traverse(options) {
             deps,
         };
     }
-    // Returns all discovered child instances with their parent relationship.
+    // Returns all discovered child
+    // instances with their parent relationship.
     async function msgFindChildren(msg) {
         const rootEntity = msg.rootEntity || options.rootEntity;
         const rootEntityId = msg.rootEntityId;
