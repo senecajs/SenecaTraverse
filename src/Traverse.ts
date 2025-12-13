@@ -3,14 +3,15 @@
 import { Optional } from 'gubu'
 
 type EntityID = string
+type UUID = string
 
 type ParentChildRelation = [EntityID, EntityID]
 
 type Parental = ParentChildRelation[]
 
 type ChildInstance = {
-  parent_id: string
-  child_id: string
+  parent_id: UUID
+  child_id: UUID
   parent_canon: EntityID
   child_canon: EntityID
 }
@@ -113,7 +114,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     this: any,
     msg: {
       rootEntity?: EntityID
-      rootEntityId: string
+      rootEntityId: UUID
     },
   ): Promise<{
     ok: boolean
@@ -128,7 +129,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     const relationsQueue = relationsQueueRes.deps
 
     const result: ChildInstance[] = []
-    const parentInstanceMap = new Map<EntityID, Set<string>>()
+    const parentInstanceMap = new Map<EntityID, Set<UUID>>()
 
     parentInstanceMap.set(rootEntity, new Set([rootEntityId]))
 
