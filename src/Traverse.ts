@@ -4,9 +4,10 @@ import { Optional } from 'gubu'
 
 type EntityID = string
 type UUID = string
+type Timestamp = number
+type Message = string | object
 
 type ParentChildRelation = [EntityID, EntityID]
-
 type Parental = ParentChildRelation[]
 
 type ChildInstance = {
@@ -24,32 +25,29 @@ type Entity = {
 }
 
 type RunEntity = {
-  id: string
+  id: UUID
   root_entity: EntityID
-  root_id: string
-  task_msg: string
+  root_id: UUID
+  task_msg: Message
   // TODO: add stop act
   status: 'created' | 'running' | 'completed' | 'stopped'
   total_tasks: number
   completed_tasks: number
   failed_tasks: number
-  started_at?: number
-  completed_at?: number
+  started_at?: Timestamp
+  completed_at?: Timestamp
 } & Entity
 
 type TaskEntity = {
-  id: string
-  run_id: string
-  parent_id: string
-  child_id: string
-  parent_canon: EntityID
-  child_canon: EntityID
+  id: UUID
+  run_id: UUID
   status: 'pending' | 'dispatched' | 'done' | 'failed'
   retry: number
-  task_msg: string
-  dispatched_at?: number
-  completed_at?: number
-} & Entity
+  task_msg: Message
+  dispatched_at?: Timestamp
+  completed_at?: Timestamp
+} & ChildInstance &
+  Entity
 
 interface FindChildren {
   ok: boolean
@@ -76,29 +74,6 @@ function Traverse(this: any, options: TraverseOptionsFull) {
   seneca
     .fix('sys:traverse')
     .message(
-      'on:run,do:create',
-      {
-        rootEntity: Optional(String),
-        rootEntityId: String,
-        taskMsg: String,
-      },
-      msgCreateTaskRun,
-    )
-    .message(
-      'on:run,do:start',
-      {
-        runId: String,
-      },
-      msgRunStart,
-    )
-    .message(
-      'on:task,do:execute',
-      {
-        task: Object,
-      },
-      msgTaskExecute,
-    )
-    .message(
       'find:deps',
       {
         rootEntity: Optional(String),
@@ -113,51 +88,162 @@ function Traverse(this: any, options: TraverseOptionsFull) {
       },
       msgFindChildren,
     )
+    .message(
+      'on:run,do:create',
+      {
+        rootEntity: Optional(String),
+        rootEntityId: String,
+        taskMsg: String,
+      },
+      msgCreateTaskRun,
+    )
+    .message(
+      'on:task,do:execute',
+      {
+        task: Object,
+      },
+      msgTaskExecute,
+    )
+    .message(
+      'on:run,do:start',
+      {
+        runId: String,
+      },
+      msgRunStart,
+    )
 
-  // Start a run process execution for all
-  // its pending children tasks.
-  async function msgRunStart(
+  // Returns a sorted list of entity pairs
+  // starting from a given entity.
+  // In breadth-first order, sorting first by level,
+  // then alphabetically in each level.
+  async function msgFindDeps(
     this: any,
     msg: {
-      runId: string
+      rootEntity?: EntityID
     },
-  ): Promise<{
-    ok: boolean
-    why?: string
-    run?: RunEntity
-  }> {
-    const runId = msg.runId
+  ): Promise<{ ok: boolean; deps: ParentChildRelation[] }> {
+    // const seneca = this
+    const allRelations: Parental = options.relations.parental
+    const rootEntity = msg.rootEntity || options.rootEntity
+    const deps: ParentChildRelation[] = []
 
-    const runEnt: RunEntity = await seneca.entity('sys/traverse').load$({
-      id: runId,
-    })
+    const parentChildrenMap: Map<EntityID, EntityID[]> = new Map()
 
-    if (!runEnt?.id) {
-      return { ok: false, why: 'run-entity-not-found' }
+    for (const [parent, child] of allRelations) {
+      if (!parentChildrenMap.has(parent)) {
+        parentChildrenMap.set(parent, [])
+      }
+
+      parentChildrenMap.get(parent)!.push(child)
     }
 
-    const nextTask: TaskEntity = await seneca.entity('sys/traversetask').load$({
-      run_id: runEnt.id,
-      status: 'pending',
-    })
-
-    if (!nextTask?.id) {
-      runEnt.status = 'completed'
-      runEnt.completed_at = Date.now()
-      await runEnt.save$()
-
-      return { ok: true }
+    for (const children of parentChildrenMap.values()) {
+      children.sort()
     }
 
-    runEnt.status = 'running'
-    runEnt.started_at = Date.now()
-    await runEnt.save$()
+    const visitedEntitiesSet: Set<EntityID> = new Set([rootEntity])
+    let currentLevel: EntityID[] = [rootEntity]
 
-    await seneca.post('sys:traverse,on:task,do:execute', {
-      task: nextTask,
+    while (currentLevel.length > 0) {
+      const nextLevel: EntityID[] = []
+      let levelDeps: ParentChildRelation[] = []
+
+      for (const parent of currentLevel) {
+        const children = parentChildrenMap.get(parent) || []
+
+        for (const child of children) {
+          if (visitedEntitiesSet.has(child)) {
+            continue
+          }
+
+          levelDeps.push([parent, child])
+          visitedEntitiesSet.add(child)
+          nextLevel.push(child)
+        }
+      }
+
+      levelDeps = compareRelations(levelDeps)
+      deps.push(...levelDeps)
+      currentLevel = nextLevel
+    }
+
+    return {
+      ok: true,
+      deps,
+    }
+  }
+
+  // Returns all discovered child
+  // instances with their parent relationship.
+  async function msgFindChildren(
+    this: any,
+    msg: {
+      rootEntity?: EntityID
+      rootEntityId: UUID
+    },
+  ): Promise<FindChildren> {
+    const rootEntity: EntityID = msg.rootEntity || options.rootEntity
+    const rootEntityId = msg.rootEntityId
+    const customRef = options.customRef
+    const relationsQueueRes = await seneca.post('sys:traverse,find:deps', {
+      rootEntity,
     })
+    const relationsQueue = relationsQueueRes.deps
 
-    return { ok: true, run: runEnt }
+    const result: ChildInstance[] = []
+    const parentInstanceMap = new Map<EntityID, Set<UUID>>()
+
+    parentInstanceMap.set(rootEntity, new Set([rootEntityId]))
+
+    for (const [parentCanon, childCanon] of relationsQueue) {
+      const parentInstances = parentInstanceMap.get(parentCanon)
+
+      if (!parentInstances || parentInstances.size === 0) {
+        continue
+      }
+
+      const foreignRef =
+        customRef[childCanon] || `${getEntityName(parentCanon)}_id`
+
+      if (!parentInstanceMap.has(childCanon)) {
+        parentInstanceMap.set(childCanon, new Set())
+      }
+
+      const childInstancesSet = parentInstanceMap.get(childCanon)
+
+      const childQueryPromises = Array.from(parentInstances).map(
+        async (parentId) => {
+          const childInstances = await seneca.entity(childCanon).list$({
+            [foreignRef]: parentId,
+            fields$: ['id'],
+          })
+
+          return { parentId, childInstances }
+        },
+      )
+
+      const queryResults = await Promise.all(childQueryPromises)
+
+      for (const { parentId, childInstances } of queryResults) {
+        for (const childInst of childInstances) {
+          const childId = childInst.id
+
+          childInstancesSet!.add(childId)
+
+          result.push({
+            parent_id: parentId,
+            child_id: childId,
+            parent_canon: parentCanon,
+            child_canon: childCanon,
+          })
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      children: result,
+    }
   }
 
   // Create a run process and generate tasks
@@ -315,138 +401,50 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     return { ok: true, task: task }
   }
 
-  // Returns a sorted list of entity pairs
-  // starting from a given entity.
-  // In breadth-first order, sorting first by level,
-  // then alphabetically in each level.
-  async function msgFindDeps(
+  // Start a run process execution for all
+  // its pending children tasks.
+  async function msgRunStart(
     this: any,
     msg: {
-      rootEntity?: EntityID
+      runId: string
     },
-  ): Promise<{ ok: boolean; deps: ParentChildRelation[] }> {
-    // const seneca = this
-    const allRelations: Parental = options.relations.parental
-    const rootEntity = msg.rootEntity || options.rootEntity
-    const deps: ParentChildRelation[] = []
+  ): Promise<{
+    ok: boolean
+    why?: string
+    run?: RunEntity
+  }> {
+    const runId = msg.runId
 
-    const parentChildrenMap: Map<EntityID, EntityID[]> = new Map()
-
-    for (const [parent, child] of allRelations) {
-      if (!parentChildrenMap.has(parent)) {
-        parentChildrenMap.set(parent, [])
-      }
-
-      parentChildrenMap.get(parent)!.push(child)
-    }
-
-    for (const children of parentChildrenMap.values()) {
-      children.sort()
-    }
-
-    const visitedEntitiesSet: Set<EntityID> = new Set([rootEntity])
-    let currentLevel: EntityID[] = [rootEntity]
-
-    while (currentLevel.length > 0) {
-      const nextLevel: EntityID[] = []
-      let levelDeps: ParentChildRelation[] = []
-
-      for (const parent of currentLevel) {
-        const children = parentChildrenMap.get(parent) || []
-
-        for (const child of children) {
-          if (visitedEntitiesSet.has(child)) {
-            continue
-          }
-
-          levelDeps.push([parent, child])
-          visitedEntitiesSet.add(child)
-          nextLevel.push(child)
-        }
-      }
-
-      levelDeps = compareRelations(levelDeps)
-      deps.push(...levelDeps)
-      currentLevel = nextLevel
-    }
-
-    return {
-      ok: true,
-      deps,
-    }
-  }
-
-  // Returns all discovered child
-  // instances with their parent relationship.
-  async function msgFindChildren(
-    this: any,
-    msg: {
-      rootEntity?: EntityID
-      rootEntityId: UUID
-    },
-  ): Promise<FindChildren> {
-    const rootEntity: EntityID = msg.rootEntity || options.rootEntity
-    const rootEntityId = msg.rootEntityId
-    const customRef = options.customRef
-    const relationsQueueRes = await seneca.post('sys:traverse,find:deps', {
-      rootEntity,
+    const runEnt: RunEntity = await seneca.entity('sys/traverse').load$({
+      id: runId,
     })
-    const relationsQueue = relationsQueueRes.deps
 
-    const result: ChildInstance[] = []
-    const parentInstanceMap = new Map<EntityID, Set<UUID>>()
-
-    parentInstanceMap.set(rootEntity, new Set([rootEntityId]))
-
-    for (const [parentCanon, childCanon] of relationsQueue) {
-      const parentInstances = parentInstanceMap.get(parentCanon)
-
-      if (!parentInstances || parentInstances.size === 0) {
-        continue
-      }
-
-      const foreignRef =
-        customRef[childCanon] || `${getEntityName(parentCanon)}_id`
-
-      if (!parentInstanceMap.has(childCanon)) {
-        parentInstanceMap.set(childCanon, new Set())
-      }
-
-      const childInstancesSet = parentInstanceMap.get(childCanon)
-
-      const childQueryPromises = Array.from(parentInstances).map(
-        async (parentId) => {
-          const childInstances = await seneca.entity(childCanon).list$({
-            [foreignRef]: parentId,
-            fields$: ['id'],
-          })
-
-          return { parentId, childInstances }
-        },
-      )
-
-      const queryResults = await Promise.all(childQueryPromises)
-
-      for (const { parentId, childInstances } of queryResults) {
-        for (const childInst of childInstances) {
-          const childId = childInst.id
-
-          childInstancesSet!.add(childId)
-
-          result.push({
-            parent_id: parentId,
-            child_id: childId,
-            parent_canon: parentCanon,
-            child_canon: childCanon,
-          })
-        }
-      }
+    if (!runEnt?.id) {
+      return { ok: false, why: 'run-entity-not-found' }
     }
 
-    return {
-      ok: true,
-      children: result,
+    const nextTask: TaskEntity = await seneca.entity('sys/traversetask').load$({
+      run_id: runEnt.id,
+      status: 'pending',
+    })
+
+    if (!nextTask?.id) {
+      runEnt.status = 'completed'
+      runEnt.completed_at = Date.now()
+      await runEnt.save$()
+
+      return { ok: true }
     }
+
+    runEnt.status = 'running'
+    runEnt.started_at = Date.now()
+    await runEnt.save$()
+
+    await seneca.post('sys:traverse,on:task,do:execute', {
+      task: nextTask,
+    })
+
+    return { ok: true, run: runEnt }
   }
 
   function compareRelations(

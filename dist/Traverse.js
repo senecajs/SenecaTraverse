@@ -8,51 +8,116 @@ function Traverse(options) {
     // const { Default } = seneca.valid
     seneca
         .fix('sys:traverse')
-        .message('on:run,do:create', {
-        rootEntity: (0, gubu_1.Optional)(String),
-        rootEntityId: String,
-        taskMsg: String,
-    }, msgCreateTaskRun)
-        .message('on:run,do:start', {
-        runId: String,
-    }, msgRunStart)
-        .message('on:task,do:execute', {
-        task: Object,
-    }, msgTaskExecute)
         .message('find:deps', {
         rootEntity: (0, gubu_1.Optional)(String),
     }, msgFindDeps)
         .message('find:children', {
         rootEntity: (0, gubu_1.Optional)(String),
         rootEntityId: String,
-    }, msgFindChildren);
-    // Start a run process execution for all
-    // its pending children tasks.
-    async function msgRunStart(msg) {
-        const runId = msg.runId;
-        const runEnt = await seneca.entity('sys/traverse').load$({
-            id: runId,
-        });
-        if (!runEnt?.id) {
-            return { ok: false, why: 'run-entity-not-found' };
+    }, msgFindChildren)
+        .message('on:run,do:create', {
+        rootEntity: (0, gubu_1.Optional)(String),
+        rootEntityId: String,
+        taskMsg: String,
+    }, msgCreateTaskRun)
+        .message('on:task,do:execute', {
+        task: Object,
+    }, msgTaskExecute)
+        .message('on:run,do:start', {
+        runId: String,
+    }, msgRunStart);
+    // Returns a sorted list of entity pairs
+    // starting from a given entity.
+    // In breadth-first order, sorting first by level,
+    // then alphabetically in each level.
+    async function msgFindDeps(msg) {
+        // const seneca = this
+        const allRelations = options.relations.parental;
+        const rootEntity = msg.rootEntity || options.rootEntity;
+        const deps = [];
+        const parentChildrenMap = new Map();
+        for (const [parent, child] of allRelations) {
+            if (!parentChildrenMap.has(parent)) {
+                parentChildrenMap.set(parent, []);
+            }
+            parentChildrenMap.get(parent).push(child);
         }
-        const nextTask = await seneca.entity('sys/traversetask').load$({
-            run_id: runEnt.id,
-            status: 'pending',
-        });
-        if (!nextTask?.id) {
-            runEnt.status = 'completed';
-            runEnt.completed_at = Date.now();
-            await runEnt.save$();
-            return { ok: true };
+        for (const children of parentChildrenMap.values()) {
+            children.sort();
         }
-        runEnt.status = 'running';
-        runEnt.started_at = Date.now();
-        await runEnt.save$();
-        await seneca.post('sys:traverse,on:task,do:execute', {
-            task: nextTask,
+        const visitedEntitiesSet = new Set([rootEntity]);
+        let currentLevel = [rootEntity];
+        while (currentLevel.length > 0) {
+            const nextLevel = [];
+            let levelDeps = [];
+            for (const parent of currentLevel) {
+                const children = parentChildrenMap.get(parent) || [];
+                for (const child of children) {
+                    if (visitedEntitiesSet.has(child)) {
+                        continue;
+                    }
+                    levelDeps.push([parent, child]);
+                    visitedEntitiesSet.add(child);
+                    nextLevel.push(child);
+                }
+            }
+            levelDeps = compareRelations(levelDeps);
+            deps.push(...levelDeps);
+            currentLevel = nextLevel;
+        }
+        return {
+            ok: true,
+            deps,
+        };
+    }
+    // Returns all discovered child
+    // instances with their parent relationship.
+    async function msgFindChildren(msg) {
+        const rootEntity = msg.rootEntity || options.rootEntity;
+        const rootEntityId = msg.rootEntityId;
+        const customRef = options.customRef;
+        const relationsQueueRes = await seneca.post('sys:traverse,find:deps', {
+            rootEntity,
         });
-        return { ok: true, run: runEnt };
+        const relationsQueue = relationsQueueRes.deps;
+        const result = [];
+        const parentInstanceMap = new Map();
+        parentInstanceMap.set(rootEntity, new Set([rootEntityId]));
+        for (const [parentCanon, childCanon] of relationsQueue) {
+            const parentInstances = parentInstanceMap.get(parentCanon);
+            if (!parentInstances || parentInstances.size === 0) {
+                continue;
+            }
+            const foreignRef = customRef[childCanon] || `${getEntityName(parentCanon)}_id`;
+            if (!parentInstanceMap.has(childCanon)) {
+                parentInstanceMap.set(childCanon, new Set());
+            }
+            const childInstancesSet = parentInstanceMap.get(childCanon);
+            const childQueryPromises = Array.from(parentInstances).map(async (parentId) => {
+                const childInstances = await seneca.entity(childCanon).list$({
+                    [foreignRef]: parentId,
+                    fields$: ['id'],
+                });
+                return { parentId, childInstances };
+            });
+            const queryResults = await Promise.all(childQueryPromises);
+            for (const { parentId, childInstances } of queryResults) {
+                for (const childInst of childInstances) {
+                    const childId = childInst.id;
+                    childInstancesSet.add(childId);
+                    result.push({
+                        parent_id: parentId,
+                        child_id: childId,
+                        parent_canon: parentCanon,
+                        child_canon: childCanon,
+                    });
+                }
+            }
+        }
+        return {
+            ok: true,
+            children: result,
+        };
     }
     // Create a run process and generate tasks
     // for each child entity to be executed.
@@ -156,98 +221,33 @@ function Traverse(options) {
         });
         return { ok: true, task: task };
     }
-    // Returns a sorted list of entity pairs
-    // starting from a given entity.
-    // In breadth-first order, sorting first by level,
-    // then alphabetically in each level.
-    async function msgFindDeps(msg) {
-        // const seneca = this
-        const allRelations = options.relations.parental;
-        const rootEntity = msg.rootEntity || options.rootEntity;
-        const deps = [];
-        const parentChildrenMap = new Map();
-        for (const [parent, child] of allRelations) {
-            if (!parentChildrenMap.has(parent)) {
-                parentChildrenMap.set(parent, []);
-            }
-            parentChildrenMap.get(parent).push(child);
-        }
-        for (const children of parentChildrenMap.values()) {
-            children.sort();
-        }
-        const visitedEntitiesSet = new Set([rootEntity]);
-        let currentLevel = [rootEntity];
-        while (currentLevel.length > 0) {
-            const nextLevel = [];
-            let levelDeps = [];
-            for (const parent of currentLevel) {
-                const children = parentChildrenMap.get(parent) || [];
-                for (const child of children) {
-                    if (visitedEntitiesSet.has(child)) {
-                        continue;
-                    }
-                    levelDeps.push([parent, child]);
-                    visitedEntitiesSet.add(child);
-                    nextLevel.push(child);
-                }
-            }
-            levelDeps = compareRelations(levelDeps);
-            deps.push(...levelDeps);
-            currentLevel = nextLevel;
-        }
-        return {
-            ok: true,
-            deps,
-        };
-    }
-    // Returns all discovered child
-    // instances with their parent relationship.
-    async function msgFindChildren(msg) {
-        const rootEntity = msg.rootEntity || options.rootEntity;
-        const rootEntityId = msg.rootEntityId;
-        const customRef = options.customRef;
-        const relationsQueueRes = await seneca.post('sys:traverse,find:deps', {
-            rootEntity,
+    // Start a run process execution for all
+    // its pending children tasks.
+    async function msgRunStart(msg) {
+        const runId = msg.runId;
+        const runEnt = await seneca.entity('sys/traverse').load$({
+            id: runId,
         });
-        const relationsQueue = relationsQueueRes.deps;
-        const result = [];
-        const parentInstanceMap = new Map();
-        parentInstanceMap.set(rootEntity, new Set([rootEntityId]));
-        for (const [parentCanon, childCanon] of relationsQueue) {
-            const parentInstances = parentInstanceMap.get(parentCanon);
-            if (!parentInstances || parentInstances.size === 0) {
-                continue;
-            }
-            const foreignRef = customRef[childCanon] || `${getEntityName(parentCanon)}_id`;
-            if (!parentInstanceMap.has(childCanon)) {
-                parentInstanceMap.set(childCanon, new Set());
-            }
-            const childInstancesSet = parentInstanceMap.get(childCanon);
-            const childQueryPromises = Array.from(parentInstances).map(async (parentId) => {
-                const childInstances = await seneca.entity(childCanon).list$({
-                    [foreignRef]: parentId,
-                    fields$: ['id'],
-                });
-                return { parentId, childInstances };
-            });
-            const queryResults = await Promise.all(childQueryPromises);
-            for (const { parentId, childInstances } of queryResults) {
-                for (const childInst of childInstances) {
-                    const childId = childInst.id;
-                    childInstancesSet.add(childId);
-                    result.push({
-                        parent_id: parentId,
-                        child_id: childId,
-                        parent_canon: parentCanon,
-                        child_canon: childCanon,
-                    });
-                }
-            }
+        if (!runEnt?.id) {
+            return { ok: false, why: 'run-entity-not-found' };
         }
-        return {
-            ok: true,
-            children: result,
-        };
+        const nextTask = await seneca.entity('sys/traversetask').load$({
+            run_id: runEnt.id,
+            status: 'pending',
+        });
+        if (!nextTask?.id) {
+            runEnt.status = 'completed';
+            runEnt.completed_at = Date.now();
+            await runEnt.save$();
+            return { ok: true };
+        }
+        runEnt.status = 'running';
+        runEnt.started_at = Date.now();
+        await runEnt.save$();
+        await seneca.post('sys:traverse,on:task,do:execute', {
+            task: nextTask,
+        });
+        return { ok: true, run: runEnt };
     }
     function compareRelations(relations) {
         return [...relations].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }) ||
