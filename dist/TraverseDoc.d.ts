@@ -1,5 +1,12 @@
 declare const docs: {
-    messages: {};
+    messages: {
+        msgFindDeps: {
+            desc: string;
+        };
+        msgFindChildren: {
+            desc: string;
+        };
+    };
 };
 export default docs;
 //# sourceMappingURL=TraverseDoc.d.ts.map
