@@ -1,6 +1,6 @@
 /* Copyright © 2025 Seneca Project Contributors, MIT License. */
 
-import { Optional, Skip } from 'gubu'
+import { Optional } from 'gubu'
 
 type EntityID = string
 
