@@ -2025,10 +2025,10 @@ const __2 = __importDefault(require(".."));
             task: taskList[0],
         });
         (0, code_1.expect)(res.ok).equal(true);
-        // const taskEnt = await seneca.entity('sys/traversetask').load$({
-        //   id: taskData.id,
-        // })
-        // expect(taskEnt.status).equal('done')
+        const taskEnt = await seneca
+            .entity('sys/traversetask')
+            .load$(taskList[0].id);
+        (0, code_1.expect)(taskEnt.status).equal('done');
     });
     (0, node_test_1.test)('start-run', async () => {
         const seneca = makeSeneca()

@@ -2313,11 +2313,11 @@ describe('Traverse', () => {
 
     expect(res.ok).equal(true)
 
-    // const taskEnt = await seneca.entity('sys/traversetask').load$({
-    //   id: taskData.id,
-    // })
+    const taskEnt = await seneca
+      .entity('sys/traversetask')
+      .load$(taskList[0].id)
 
-    // expect(taskEnt.status).equal('done')
+    expect(taskEnt.status).equal('done')
   })
 
   test('start-run', async () => {
