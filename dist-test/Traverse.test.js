@@ -2084,6 +2084,7 @@ const __2 = __importDefault(require(".."));
         let tasks = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
         });
+        (0, code_1.expect)(tasks.length).equal(4);
         for (const task of tasks) {
             (0, code_1.expect)(task.status).equal('pending');
         }
@@ -2092,11 +2093,11 @@ const __2 = __importDefault(require(".."));
         });
         (0, code_1.expect)(startRunRes.ok).true();
         // TODO: improve async validation
-        await sleep(100);
+        await sleep(50);
         tasks = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
         });
-        // console.log('tasks ', tasks)
+        (0, code_1.expect)(tasks.length).equal(4);
         for (const task of tasks) {
             (0, code_1.expect)(task.status).equal('done');
         }

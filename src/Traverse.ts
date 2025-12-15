@@ -339,6 +339,41 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     runEnt.total_tasks = taskSuccessCount
     runEnt = await runEnt.save$()
 
+    seneca.message(runEnt.task_msg, async function (this: any, msg: any) {
+      const seneca = this
+
+      const clientActMsg = await seneca.prior(msg)
+
+      const runEnt: RunEntity = await seneca
+        .entity('sys/traverse')
+        .load$(msg.task_entity?.run_id)
+
+      if (runEnt.status !== 'running') {
+        return clientActMsg
+      }
+
+      const nextTask: TaskEntity = await seneca
+        .entity('sys/traversetask')
+        .load$({
+          run_id: runEnt.id,
+          status: 'pending',
+        })
+
+      if (!nextTask?.id) {
+        runEnt.status = 'completed'
+        await runEnt.save$()
+
+        return { ok: true }
+      }
+
+      // Dispatch the next pending task
+      await seneca.post('sys:traverse,on:task,do:execute', {
+        task: nextTask,
+      })
+
+      return clientActMsg
+    })
+
     return {
       ok: true,
       run: runEnt,
@@ -366,41 +401,6 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     task.status = 'dispatched'
     task.dispatched_at = Date.now()
     await task.save$()
-
-    const runEnt: RunEntity = await seneca
-      .entity('sys/traverse')
-      .load$(task.run_id)
-
-    seneca.message(runEnt.task_msg, async function (this: any, msg: any) {
-      const seneca = this
-
-      const clientActMsg = await seneca.prior(msg)
-
-      if (runEnt.status !== 'running') {
-        return clientActMsg
-      }
-
-      const nextTask: TaskEntity = await seneca
-        .entity('sys/traversetask')
-        .load$({
-          run_id: runEnt.id,
-          status: 'pending',
-        })
-
-      if (!nextTask?.id) {
-        runEnt.status = 'completed'
-        await runEnt.save$()
-
-        return { ok: true }
-      }
-
-      // Dispatch the next pending task
-      await seneca.post('sys:traverse,on:task,do:execute', {
-        task: nextTask,
-      })
-
-      return clientActMsg
-    })
 
     // enqueue or process the current task
     await seneca.post(task.task_msg, {

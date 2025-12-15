@@ -2384,6 +2384,8 @@ describe('Traverse', () => {
       run_id: runEnt.id,
     })
 
+    expect(tasks.length).equal(4)
+
     for (const task of tasks) {
       expect(task.status).equal('pending')
     }
@@ -2395,12 +2397,13 @@ describe('Traverse', () => {
     expect(startRunRes.ok).true()
 
     // TODO: improve async validation
-    await sleep(100)
+    await sleep(50)
 
     tasks = await seneca.entity('sys/traversetask').list$({
       run_id: runEnt.id,
     })
-    // console.log('tasks ', tasks)
+
+    expect(tasks.length).equal(4)
 
     for (const task of tasks) {
       expect(task.status).equal('done')
