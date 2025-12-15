@@ -181,6 +181,28 @@ function Traverse(options) {
                     taskCreation.reason);
             }
         });
+        runEnt.total_tasks = taskSuccessCount;
+        runEnt = await runEnt.save$();
+        return {
+            ok: true,
+            run: runEnt,
+            tasksCreated: taskSuccessCount,
+            tasksFailed: taskFailedCount,
+        };
+    }
+    // Execute a single task updating its
+    // status afterwards.
+    async function msgTaskExecute(msg) {
+        const task = msg.task;
+        if (!task?.task_msg) {
+            return { ok: true };
+        }
+        task.status = 'dispatched';
+        task.dispatched_at = Date.now();
+        await task.save$();
+        const runEnt = await seneca
+            .entity('sys/traverse')
+            .load$(task.run_id);
         seneca.message(runEnt.task_msg, async function (msg) {
             const seneca = this;
             const clientActMsg = await seneca.prior(msg);
@@ -204,30 +226,11 @@ function Traverse(options) {
             });
             return clientActMsg;
         });
-        runEnt.total_tasks = taskSuccessCount;
-        runEnt = await runEnt.save$();
-        return {
-            ok: true,
-            run: runEnt,
-            tasksCreated: taskSuccessCount,
-            tasksFailed: taskFailedCount,
-        };
-    }
-    // Execute a single task updating its
-    // status afterwards.
-    async function msgTaskExecute(msg) {
-        const task = msg.task;
-        if (!task?.id) {
-            return { ok: false, why: 'task-not-found' };
-        }
-        task.status = 'dispatched';
-        task.dispatched_at = Date.now();
-        await task.save$();
         // enqueue or process the current task
         await seneca.post(task.task_msg, {
             task_entity: task,
         });
-        return { ok: true, task: task };
+        return { ok: true };
     }
     // Start a run process execution for all
     // its pending children tasks.

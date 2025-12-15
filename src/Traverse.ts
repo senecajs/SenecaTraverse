@@ -336,6 +336,41 @@ function Traverse(this: any, options: TraverseOptionsFull) {
       }
     })
 
+    runEnt.total_tasks = taskSuccessCount
+    runEnt = await runEnt.save$()
+
+    return {
+      ok: true,
+      run: runEnt,
+      tasksCreated: taskSuccessCount,
+      tasksFailed: taskFailedCount,
+    }
+  }
+
+  // Execute a single task updating its
+  // status afterwards.
+  async function msgTaskExecute(
+    this: any,
+    msg: {
+      task: TaskEntity
+    },
+  ): Promise<{
+    ok: boolean
+  }> {
+    const task = msg.task
+
+    if (!task?.task_msg) {
+      return { ok: true }
+    }
+
+    task.status = 'dispatched'
+    task.dispatched_at = Date.now()
+    await task.save$()
+
+    const runEnt: RunEntity = await seneca
+      .entity('sys/traverse')
+      .load$(task.run_id)
+
     seneca.message(runEnt.task_msg, async function (this: any, msg: any) {
       const seneca = this
 
@@ -367,45 +402,12 @@ function Traverse(this: any, options: TraverseOptionsFull) {
       return clientActMsg
     })
 
-    runEnt.total_tasks = taskSuccessCount
-    runEnt = await runEnt.save$()
-
-    return {
-      ok: true,
-      run: runEnt,
-      tasksCreated: taskSuccessCount,
-      tasksFailed: taskFailedCount,
-    }
-  }
-
-  // Execute a single task updating its
-  // status afterwards.
-  async function msgTaskExecute(
-    this: any,
-    msg: {
-      task: TaskEntity
-    },
-  ): Promise<{
-    ok: boolean
-    why?: string
-    task?: TaskEntity
-  }> {
-    const task = msg.task
-
-    if (!task?.id) {
-      return { ok: false, why: 'task-not-found' }
-    }
-
-    task.status = 'dispatched'
-    task.dispatched_at = Date.now()
-    await task.save$()
-
     // enqueue or process the current task
     await seneca.post(task.task_msg, {
       task_entity: task,
     })
 
-    return { ok: true, task: task }
+    return { ok: true }
   }
 
   // Start a run process execution for all
