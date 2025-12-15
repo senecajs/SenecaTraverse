@@ -2092,7 +2092,6 @@ const __2 = __importDefault(require(".."));
         });
         (0, code_1.expect)(startRunRes.ok).true();
         // TODO: improve async validation
-        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         await sleep(100);
         tasks = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
@@ -2103,6 +2102,9 @@ const __2 = __importDefault(require(".."));
         }
     });
 });
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
 function makeSeneca(opts = {}) {
     const seneca = (0, seneca_1.default)({ legacy: false }).test().use('promisify').use('entity');
     return seneca;

@@ -2395,8 +2395,6 @@ describe('Traverse', () => {
     expect(startRunRes.ok).true()
 
     // TODO: improve async validation
-    const sleep = (ms: number) =>
-      new Promise((resolve) => setTimeout(resolve, ms))
     await sleep(100)
 
     tasks = await seneca.entity('sys/traversetask').list$({
@@ -2409,6 +2407,10 @@ describe('Traverse', () => {
     }
   })
 })
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 function makeSeneca(opts: any = {}) {
   const seneca = Seneca({ legacy: false }).test().use('promisify').use('entity')
