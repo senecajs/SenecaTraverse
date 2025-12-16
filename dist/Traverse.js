@@ -149,7 +149,6 @@ function Traverse(options) {
                 parent_canon: rootEntity,
                 child_canon: rootEntity,
                 status: 'pending',
-                retry: 0,
                 task_msg: run.task_msg,
             }));
         }
@@ -161,7 +160,6 @@ function Traverse(options) {
                 parent_canon: child.parent_canon,
                 child_canon: child.child_canon,
                 status: 'pending',
-                retry: 0,
                 task_msg: run.task_msg,
             }));
         });
@@ -258,6 +256,7 @@ function Traverse(options) {
             });
             if (!nextTask?.id) {
                 run.status = 'completed';
+                run.completed_at = Date.now();
                 await run.save$();
                 return clientActMsg;
             }

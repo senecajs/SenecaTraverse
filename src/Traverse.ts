@@ -42,7 +42,6 @@ type TaskEntity = {
   id: UUID
   run_id: UUID
   status: 'pending' | 'dispatched'
-  retry: number
   task_msg: Message
   dispatched_at?: Timestamp
   completed_at?: Timestamp
@@ -301,7 +300,6 @@ function Traverse(this: any, options: TraverseOptionsFull) {
           parent_canon: rootEntity,
           child_canon: rootEntity,
           status: 'pending',
-          retry: 0,
           task_msg: run.task_msg,
         }),
       )
@@ -316,7 +314,6 @@ function Traverse(this: any, options: TraverseOptionsFull) {
           parent_canon: child.parent_canon,
           child_canon: child.child_canon,
           status: 'pending',
-          retry: 0,
           task_msg: run.task_msg,
         }),
       )
@@ -464,6 +461,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
 
       if (!nextTask?.id) {
         run.status = 'completed'
+        run.completed_at = Date.now()
         await run.save$()
 
         return clientActMsg
