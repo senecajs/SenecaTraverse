@@ -193,7 +193,7 @@ function Traverse(options) {
     // Execute a single Run task.
     async function msgTaskExecute(msg) {
         const task = msg.task;
-        if (task.status !== 'pending') {
+        if (task.status !== 'pending' && task.status !== 'failed') {
             return { ok: true };
         }
         task.status = 'dispatched';
@@ -223,6 +223,12 @@ function Traverse(options) {
             run_id: run.id,
             status: 'pending',
         });
+        if (!nextTask?.id) {
+            run.status = 'completed';
+            run.completed_at = Date.now();
+            await run.save$();
+            return { ok: true, run };
+        }
         seneca.post('sys:traverse,on:task,do:execute', {
             task: nextTask,
         });
