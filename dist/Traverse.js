@@ -23,7 +23,10 @@ function Traverse(options) {
     }, msgTaskExecute)
         .message('on:run,do:start', {
         runId: String,
-    }, msgRunStart);
+    }, msgRunStart)
+        .message('on:run,do:stop', {
+        runId: String,
+    }, msgRunStop);
     // Returns a sorted list of entity pairs
     // starting from a given entity.
     // In breadth-first order, sorting first by level,
@@ -210,7 +213,7 @@ function Traverse(options) {
         await seneca.post(task.task_msg, dispatchArg);
         return { ok: true };
     }
-    // Start a run process execution,
+    // Start a Run process execution,
     // dispatching the next pending child task.
     async function msgRunStart(msg) {
         const runId = msg.runId;
@@ -237,6 +240,21 @@ function Traverse(options) {
         seneca.post('sys:traverse,on:task,do:execute', {
             task: nextTask,
         });
+        return { ok: true, run };
+    }
+    // Stop a Run process execution,
+    // blocking the dispatching of the next pending child task.
+    async function msgRunStop(msg) {
+        const runId = msg.runId;
+        const run = await seneca.entity('sys/traverse').load$(runId);
+        if (!run?.status) {
+            return { ok: false, why: 'run-entity-not-found' };
+        }
+        if (run.status !== 'active') {
+            return { ok: true, run };
+        }
+        run.status = 'stopped';
+        await run.save$();
         return { ok: true, run };
     }
     function compareRelations(relations) {

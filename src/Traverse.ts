@@ -29,7 +29,6 @@ type RunEntity = {
   root_entity: EntityID
   root_id: UUID
   task_msg: Message
-  // TODO: add stop act
   status: 'created' | 'active' | 'completed' | 'stopped'
   total_tasks: number
   started_at?: Timestamp
@@ -109,6 +108,13 @@ function Traverse(this: any, options: TraverseOptionsFull) {
         runId: String,
       },
       msgRunStart,
+    )
+    .message(
+      'on:run,do:stop',
+      {
+        runId: String,
+      },
+      msgRunStop,
     )
 
   // Returns a sorted list of entity pairs
@@ -385,7 +391,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     return { ok: true }
   }
 
-  // Start a run process execution,
+  // Start a Run process execution,
   // dispatching the next pending child task.
   async function msgRunStart(
     this: any,
@@ -429,6 +435,36 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     seneca.post('sys:traverse,on:task,do:execute', {
       task: nextTask,
     })
+
+    return { ok: true, run }
+  }
+
+  // Stop a Run process execution,
+  // blocking the dispatching of the next pending child task.
+  async function msgRunStop(
+    this: any,
+    msg: {
+      runId: string
+    },
+  ): Promise<{
+    ok: boolean
+    why?: string
+    run?: RunEntity
+  }> {
+    const runId = msg.runId
+
+    const run: RunEntity = await seneca.entity('sys/traverse').load$(runId)
+
+    if (!run?.status) {
+      return { ok: false, why: 'run-entity-not-found' }
+    }
+
+    if (run.status !== 'active') {
+      return { ok: true, run }
+    }
+
+    run.status = 'stopped'
+    await run.save$()
 
     return { ok: true, run }
   }
