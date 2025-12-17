@@ -32,8 +32,6 @@ type RunEntity = {
   // TODO: add stop act
   status: 'created' | 'active' | 'completed' | 'stopped'
   total_tasks: number
-  completed_tasks: number
-  failed_tasks: number
   started_at?: Timestamp
   completed_at?: Timestamp
 } & Entity
