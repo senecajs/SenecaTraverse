@@ -292,7 +292,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     const tasksCreationPromises: Promise<TaskEntity>[] = []
 
     if (isRootIncluded) {
-      // Process the action over the root data storage,
+      // Process the action on the root data storage,
       // not only on its children.
       tasksCreationPromises.push(
         seneca.entity('sys/traversetask').save$({
@@ -443,7 +443,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
   }
 
   // Stop a Run process execution,
-  // blocking the dispatching of the next pending child task.
+  // preventing the dispatching of the next pending child task.
   async function msgRunStop(
     this: any,
     msg: {

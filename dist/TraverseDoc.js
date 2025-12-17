@@ -16,7 +16,7 @@ const docs = {
             desc: 'Start a Run process execution, dispatching the next pending child task.',
         },
         msgRunStop: {
-            desc: 'Stop a Run process execution, blocking the dispatching of the next pending child task.',
+            desc: 'Stop a Run process execution, preventing the dispatching of the next pending child task.',
         },
         msgTaskExecute: {
             desc: 'Execute a single Run task.',

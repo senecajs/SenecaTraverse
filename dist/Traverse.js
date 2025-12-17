@@ -142,7 +142,7 @@ function Traverse(options) {
         });
         const tasksCreationPromises = [];
         if (isRootIncluded) {
-            // Process the action over the root data storage,
+            // Process the action on the root data storage,
             // not only on its children.
             tasksCreationPromises.push(seneca.entity('sys/traversetask').save$({
                 run_id: run.id,
@@ -243,7 +243,7 @@ function Traverse(options) {
         return { ok: true, run };
     }
     // Stop a Run process execution,
-    // blocking the dispatching of the next pending child task.
+    // preventing the dispatching of the next pending child task.
     async function msgRunStop(msg) {
         const runId = msg.runId;
         const run = await seneca.entity('sys/traverse').load$(runId);
