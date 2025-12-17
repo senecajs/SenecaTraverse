@@ -169,25 +169,25 @@ function Traverse(options) {
         let taskSuccessCount = 0;
         let taskFailedCount = 0;
         let childIdx = isRootIncluded ? -1 : 0;
-        tasksCreationRes.forEach((taskCreation, idx) => {
+        for (const taskCreation of tasksCreationRes) {
             if (taskCreation.status === 'fulfilled') {
                 taskSuccessCount++;
+                childIdx++;
+                continue;
             }
-            else {
-                taskFailedCount++;
-                const childrenData = childIdx === -1
-                    ? { child_canon: rootEntity, child_id: rootEntityId }
-                    : findChildrenRes.children[childIdx];
-                // TODO: add proper logging and retry
-                console.error('task create failed for child_canon: ' +
-                    childrenData.child_canon +
-                    ' - child_id: ' +
-                    childrenData.child_id +
-                    ' - error: ' +
-                    taskCreation.reason);
-            }
+            taskFailedCount++;
+            const childrenData = childIdx === -1
+                ? { child_canon: rootEntity, child_id: rootEntityId }
+                : findChildrenRes.children[childIdx];
+            // TODO: add proper logging and retry
+            console.error('task create failed for child_canon: ' +
+                childrenData.child_canon +
+                ' - child_id: ' +
+                childrenData.child_id +
+                ' - error: ' +
+                taskCreation.reason);
             childIdx++;
-        });
+        }
         run.total_tasks = taskSuccessCount;
         await run.save$();
         defineProcessHandler(run.id, run.task_msg);
@@ -229,7 +229,7 @@ function Traverse(options) {
         await run.save$();
         const nextTask = await seneca.entity('sys/traversetask').load$({
             run_id: run.id,
-            status: 'pending',
+            status: ['pending', 'failed'],
         });
         if (!nextTask?.id) {
             run.status = 'completed';

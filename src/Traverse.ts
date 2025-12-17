@@ -328,28 +328,31 @@ function Traverse(this: any, options: TraverseOptionsFull) {
     let taskFailedCount = 0
     let childIdx = isRootIncluded ? -1 : 0
 
-    tasksCreationRes.forEach((taskCreation, idx) => {
+    for (const taskCreation of tasksCreationRes) {
       if (taskCreation.status === 'fulfilled') {
         taskSuccessCount++
-      } else {
-        taskFailedCount++
-        const childrenData =
-          childIdx === -1
-            ? { child_canon: rootEntity, child_id: rootEntityId }
-            : findChildrenRes.children[childIdx]
-
-        // TODO: add proper logging and retry
-        console.error(
-          'task create failed for child_canon: ' +
-            childrenData.child_canon +
-            ' - child_id: ' +
-            childrenData.child_id +
-            ' - error: ' +
-            taskCreation.reason,
-        )
+        childIdx++
+        continue
       }
+
+      taskFailedCount++
+      const childrenData =
+        childIdx === -1
+          ? { child_canon: rootEntity, child_id: rootEntityId }
+          : findChildrenRes.children[childIdx]
+
+      // TODO: add proper logging and retry
+      console.error(
+        'task create failed for child_canon: ' +
+          childrenData.child_canon +
+          ' - child_id: ' +
+          childrenData.child_id +
+          ' - error: ' +
+          taskCreation.reason,
+      )
+
       childIdx++
-    })
+    }
 
     run.total_tasks = taskSuccessCount
     await run.save$()
@@ -421,7 +424,7 @@ function Traverse(this: any, options: TraverseOptionsFull) {
 
     const nextTask: TaskEntity = await seneca.entity('sys/traversetask').load$({
       run_id: run.id,
-      status: 'pending',
+      status: ['pending', 'failed'],
     })
 
     if (!nextTask?.id) {
