@@ -2395,6 +2395,7 @@ describe('Traverse', () => {
 
     await Promise.all([exec1, exec2])
 
+    // TODO: improve async validation
     await sleep(50)
 
     expect(executionCount).equal(1)
@@ -2575,6 +2576,8 @@ describe('Traverse', () => {
     expect(startRunRes.ok).equal(true)
 
     // Wait for all tasks to complete
+
+    // TODO: improve async validation
     await sleep(200)
 
     tasks = await seneca.entity('sys/traversetask').list$({
@@ -2643,6 +2646,7 @@ describe('Traverse', () => {
       runId: runEnt.id,
     })
 
+    // TODO: improve async validation
     await sleep(50)
 
     tasks = await seneca.entity('sys/traversetask').list$({
@@ -2711,7 +2715,8 @@ describe('Traverse', () => {
       runId: runEnt.id,
     })
 
-    await sleep(300)
+    // TODO: improve async validation
+    await sleep(150)
 
     tasks = await seneca.entity('sys/traversetask').list$({
       run_id: runEnt.id,
@@ -2912,6 +2917,7 @@ describe('Traverse', () => {
       runId: runEnt.id,
     })
 
+    // TODO: improve async validation
     await sleep(100)
 
     const tasksRestart = await seneca.entity('sys/traversetask').list$({
@@ -3001,7 +3007,8 @@ describe('Traverse', () => {
       runId: runEnt.id,
     })
 
-    await sleep(100)
+    // TODO: improve async validation
+    await sleep(150)
 
     const tasksRestart = await seneca.entity('sys/traversetask').list$({
       run_id: runEnt.id,

@@ -2088,6 +2088,7 @@ const __2 = __importDefault(require(".."));
         const exec1 = seneca.post('sys:traverse,on:task,do:execute', { task });
         const exec2 = seneca.post('sys:traverse,on:task,do:execute', { task });
         await Promise.all([exec1, exec2]);
+        // TODO: improve async validation
         await sleep(50);
         (0, code_1.expect)(executionCount).equal(1);
         const updatedTask = await seneca.entity('sys/traversetask').load$(task.id);
@@ -2231,6 +2232,7 @@ const __2 = __importDefault(require(".."));
         });
         (0, code_1.expect)(startRunRes.ok).equal(true);
         // Wait for all tasks to complete
+        // TODO: improve async validation
         await sleep(200);
         tasks = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
@@ -2279,6 +2281,7 @@ const __2 = __importDefault(require(".."));
         await seneca.post('sys:traverse,on:run,do:start', {
             runId: runEnt.id,
         });
+        // TODO: improve async validation
         await sleep(50);
         tasks = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
@@ -2330,7 +2333,8 @@ const __2 = __importDefault(require(".."));
         await seneca.post('sys:traverse,on:run,do:start', {
             runId: runEnt.id,
         });
-        await sleep(300);
+        // TODO: improve async validation
+        await sleep(150);
         tasks = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
         });
@@ -2483,6 +2487,7 @@ const __2 = __importDefault(require(".."));
         await seneca.post('sys:traverse,on:run,do:start', {
             runId: runEnt.id,
         });
+        // TODO: improve async validation
         await sleep(100);
         const tasksRestart = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
@@ -2550,7 +2555,8 @@ const __2 = __importDefault(require(".."));
         await seneca.post('sys:traverse,on:run,do:start', {
             runId: runEnt.id,
         });
-        await sleep(100);
+        // TODO: improve async validation
+        await sleep(150);
         const tasksRestart = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
         });
