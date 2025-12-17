@@ -2556,7 +2556,7 @@ const __2 = __importDefault(require(".."));
             runId: runEnt.id,
         });
         // TODO: improve async validation
-        await sleep(150);
+        await sleep(200);
         const tasksRestart = await seneca.entity('sys/traversetask').list$({
             run_id: runEnt.id,
         });

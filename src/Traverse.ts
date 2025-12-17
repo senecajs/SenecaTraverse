@@ -277,8 +277,6 @@ function Traverse(this: any, options: TraverseOptionsFull) {
       status: 'created',
       task_msg: taskMsg,
       total_tasks: 0,
-      completed_tasks: 0,
-      failed_tasks: 0,
     })
 
     const findChildrenRes: FindChildren = await seneca.post(

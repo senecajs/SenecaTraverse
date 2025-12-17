@@ -133,8 +133,6 @@ function Traverse(options) {
             status: 'created',
             task_msg: taskMsg,
             total_tasks: 0,
-            completed_tasks: 0,
-            failed_tasks: 0,
         });
         const findChildrenRes = await seneca.post('sys:traverse,find:children', {
             rootEntity,
