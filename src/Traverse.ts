@@ -1,6 +1,6 @@
 /* Copyright © 2026 Seneca Project Contributors, MIT License. */
 
-import { Optional } from 'gubu'
+import { Shape, Open, Exact, Min, Skip } from 'shape'
 
 import type {
   // Base Types
@@ -23,18 +23,26 @@ import type {
   FindChildrenInput,
   CreateTaskRunInput,
   TaskExecuteInput,
+  DispatchInput,
   RunStartInput,
   RunStopInput,
+  TaskCompleteInput,
+  RunDidCompleteInput,
+  RunClaimInput,
 
   // Output Types
   InvalidResult,
   FindDepsResult,
   FindChildrenResult,
   CreateTaskRunResult,
+  CreateTaskRunRollbackResult,
   TaskExecuteResult,
+  DispatchResult,
   RunStartResult,
   RunStopResult,
-  TaskDispatch,
+  TaskCompleteResult,
+  RunDidCompleteResult,
+  RunClaimResult,
 
   // Plugin
   TraversePlugin,
@@ -42,14 +50,56 @@ import type {
 
 export type { TraverseOptions } from './types'
 
+// Domain constraints (enum membership, nested entity shape) the native
+// `.message()` schema can't express. `Open` lets Seneca meta and entity methods
+// pass through.
+const taskMsgShape = Shape(
+  Open({
+    task: Open({
+      run_id: String,
+      seq: Skip(Min(0, Number)),
+      status: Exact('pending', 'dispatched', 'done'),
+    }),
+  }),
+)
+const runMsgShape = Shape(
+  Open({
+    run: Open({
+      status: Exact('created', 'active', 'completed', 'stopped'),
+    }),
+  }),
+)
+
+// Run `shape` before the handler; a mismatch throws, surfaced as an
+// invalid-message action error. The wrapper keeps `fn`'s name so seneca-doc can
+// still map its TraverseDoc description.
+function shaped<M extends object, R>(
+  shape: (msg: M) => unknown,
+  fn: (this: Seneca, msg: M) => R,
+): (this: Seneca, msg: M) => R {
+  const wrapped = function (this: Seneca, msg: M) {
+    shape(msg)
+    return fn.call(this, msg)
+  }
+  Object.defineProperty(wrapped, 'name', { value: fn.name })
+  return wrapped
+}
+
 function Traverse(this: Seneca, options: TraverseOptionsFull) {
   const seneca = this
-  // A Run process can have multiple tasks as children.
-  // Thus, this plugin automatically maps these relations for the client.
+
+  // Rebuild a live entity only when the transport stripped its methods (e.g. AWS
+  // SQS delivers plain JSON); a method-preserving entity is reused as-is.
+  function createTaskEntity(raw: any): TaskEntity {
+    if (raw && typeof raw.save$ === 'function') {
+      return raw
+    }
+    return seneca.entity('sys/traversetask').data$(raw)
+  }
+
   options.customRef = { ...options.customRef, 'sys/traversetask': 'run_id' }
-  // Build a new array instead of pushing in place: the incoming options may
-  // share the defaults' `parental` reference, and mutating it would leak the
-  // injected relation across plugin loads (accumulating duplicates).
+  // New array, not push: parental may be shared, so mutating would re-append on
+  // a second .use().
   options.relations = {
     ...options.relations,
     parental: [
@@ -60,56 +110,38 @@ function Traverse(this: Seneca, options: TraverseOptionsFull) {
 
   seneca
     .fix('sys:traverse')
-    .message(
-      'find:deps',
-      {
-        rootEntity: Optional(String),
-      },
-      msgFindDeps,
-    )
-    .message(
-      'find:children',
-      {
-        rootEntity: Optional(String),
-        rootEntityId: String,
-      },
-      msgFindChildren,
-    )
-    .message(
-      'on:run,do:create',
-      {
-        rootEntity: Optional(String),
-        rootEntityId: String,
-        taskMsg: String,
-      },
-      msgCreateTaskRun,
-    )
+    .message('find:deps', {}, msgFindDeps)
+    .message('find:children', { rootEntityId: String }, msgFindChildren)
     .message(
       'on:task,do:execute',
-      {
-        task: Object,
-      },
-      msgTaskExecute,
+      { task: Object },
+      shaped(taskMsgShape, msgTaskExecute),
     )
     .message(
-      'on:run,do:start',
-      {
-        runId: String,
-      },
-      msgRunStart,
+      'on:task,do:dispatch',
+      { task: Object },
+      shaped(taskMsgShape, msgDispatch),
+    )
+    .message('on:task,do:complete', { taskId: String }, msgTaskComplete)
+    .message(
+      'on:run,do:create',
+      { rootEntityId: String, taskMsg: String },
+      msgCreateTaskRun,
+    )
+    .message('on:run,do:start', { runId: String }, msgRunStart)
+    .message('on:run,do:stop', { runId: String }, msgRunStop)
+    .message(
+      'on:run,did:complete',
+      { run: Object },
+      shaped(runMsgShape, msgRunDidComplete),
     )
     .message(
-      'on:run,do:stop',
-      {
-        runId: String,
-      },
-      msgRunStop,
+      'on:run,do:claim',
+      { run: Object },
+      shaped(runMsgShape, msgRunClaim),
     )
 
-  // Returns a sorted list of entity pairs
-  // starting from a given entity.
-  // In breadth-first order, sorting first by level,
-  // then alphabetically in each level.
+  // Entity pairs from a root, breadth-first, sorted by level then name.
   async function msgFindDeps(
     this: Seneca,
     msg: FindDepsInput,
@@ -164,8 +196,7 @@ function Traverse(this: Seneca, options: TraverseOptionsFull) {
     }
   }
 
-  // Returns all discovered child
-  // instances with their parent relationship.
+  // All child instances with their parent relationship.
   async function msgFindChildren(
     this: Seneca,
     msg: FindChildrenInput,
@@ -234,16 +265,108 @@ function Traverse(this: Seneca, options: TraverseOptionsFull) {
     }
   }
 
-  // Create a run process and generate tasks
-  // for each child entity to be executed.
+  // Execute a single Run task.
+  async function msgTaskExecute(
+    this: Seneca,
+    msg: TaskExecuteInput,
+  ): Promise<TaskExecuteResult> {
+    const task: TaskEntity = createTaskEntity(msg.task)
+
+    if (task.status == 'done' || task.status == 'dispatched') {
+      return { ok: true }
+    }
+
+    task.status = 'dispatched'
+    task.dispatched_at = Date.now()
+    await task.save$()
+
+    await seneca.post('sys:traverse,on:task,do:dispatch', { task })
+
+    return { ok: true }
+  }
+
+  // Deliver a task to its handler. Default posts in-process; a transport host
+  // overrides this to enqueue.
+  async function msgDispatch(
+    this: Seneca,
+    msg: DispatchInput,
+  ): Promise<DispatchResult> {
+    const task: TaskEntity = createTaskEntity(msg.task)
+    await seneca.post(task.task_msg, { task })
+    return { ok: true }
+  }
+
+  async function msgTaskComplete(
+    this: Seneca,
+    msg: TaskCompleteInput,
+  ): Promise<TaskCompleteResult> {
+    const task: TaskEntity = await seneca
+      .entity('sys/traversetask')
+      .load$(msg.taskId)
+
+    if (!task) {
+      return { ok: true }
+    }
+
+    // Transition once — `done` is the idempotency marker against at-least-once
+    // redelivery, so the counter can't advance or re-chain twice.
+    if (task.status !== 'done') {
+      task.status = 'done'
+      task.done_at = Date.now()
+
+      if (null != msg.result) {
+        task.result = msg.result
+      }
+
+      if (null != msg.fragment) {
+        task.fragment = msg.fragment
+      }
+
+      await task.save$()
+
+      const run: RunEntity = await seneca
+        .entity('sys/traverse')
+        .load$(task.run_id)
+
+      if (run) {
+        run.completed_tasks = (run.completed_tasks ?? 0) + 1
+        await run.save$()
+      }
+
+      await dispatchNext(task.run_id)
+    }
+
+    // Reload: dispatchNext may have finalised the run (status/completed_at).
+    const run: RunEntity = await seneca
+      .entity('sys/traverse')
+      .load$(task.run_id)
+
+    return { ok: true, doneTasks: run?.completed_tasks, run }
+  }
+
+  // Create a run and one task per child entity (topological order).
   async function msgCreateTaskRun(
     this: Seneca,
     msg: CreateTaskRunInput,
-  ): Promise<CreateTaskRunResult> {
+  ): Promise<
+    CreateTaskRunResult | CreateTaskRunRollbackResult | InvalidResult
+  > {
     const taskMsg = msg.taskMsg
     const rootEntity = msg.rootEntity || options.rootEntity
     const rootEntityId = msg.rootEntityId
     const isRootIncluded = options.rootExecute
+
+    // task_msg is dispatched as an arbitrary Seneca pattern; gate it when set.
+    const taskMsgAllow = options.taskMsgAllow
+
+    if (taskMsgAllow.length > 0 && !taskMsgAllow.includes(taskMsg as string)) {
+      seneca.log.error('task-msg-not-allowed', { task_msg: taskMsg })
+
+      return {
+        ok: false,
+        why: 'task-msg-not-allowed',
+      }
+    }
 
     const run: RunEntity = await seneca.entity('sys/traverse').save$({
       root_entity: rootEntity,
@@ -251,6 +374,7 @@ function Traverse(this: Seneca, options: TraverseOptionsFull) {
       status: 'created',
       task_msg: taskMsg,
       total_tasks: 0,
+      completed_tasks: 0,
     })
 
     const findChildrenRes: FindChildrenResult = await seneca.post(
@@ -261,104 +385,110 @@ function Traverse(this: Seneca, options: TraverseOptionsFull) {
       },
     )
 
-    const tasksCreationPromises: Promise<TaskEntity>[] = []
-
-    if (isRootIncluded) {
-      // Process the action on the root data storage,
-      // not only on its children.
-      tasksCreationPromises.push(
-        seneca.entity('sys/traversetask').save$({
-          run_id: run.id,
-          parent_id: rootEntityId,
-          child_id: rootEntityId,
-          parent_canon: rootEntity,
-          child_canon: rootEntity,
-          status: 'pending',
-          task_msg: run.task_msg,
-        }),
-      )
+    // Depth per canon (parent + 1), stamped on each task as `seq`; dispatch
+    // orders by it (topological, or deepest-first when `reverse`).
+    const depthByCanon = new Map<EntityID, number>([[rootEntity, 0]])
+    for (const child of findChildrenRes.children) {
+      if (!depthByCanon.has(child.child_canon)) {
+        depthByCanon.set(
+          child.child_canon,
+          (depthByCanon.get(child.parent_canon) ?? 0) + 1,
+        )
+      }
     }
 
-    findChildrenRes.children.forEach((child) => {
-      tasksCreationPromises.push(
-        seneca.entity('sys/traversetask').save$({
-          run_id: run.id,
-          parent_id: child.parent_id,
-          child_id: child.child_id,
-          parent_canon: child.parent_canon,
-          child_canon: child.child_canon,
-          status: 'pending',
-          task_msg: run.task_msg,
-        }),
-      )
-    })
+    const taskSpecs: (ChildInstance & { seq: number })[] = []
+
+    if (isRootIncluded) {
+      taskSpecs.push({
+        parent_id: rootEntityId,
+        child_id: rootEntityId,
+        parent_canon: rootEntity,
+        child_canon: rootEntity,
+        seq: 0,
+      })
+    }
+
+    for (const child of findChildrenRes.children) {
+      taskSpecs.push({
+        ...child,
+        seq: depthByCanon.get(child.child_canon) ?? 0,
+      })
+    }
 
     const tasksCreationRes: PromiseSettledResult<TaskEntity>[] =
-      await Promise.allSettled(tasksCreationPromises)
+      await Promise.allSettled(
+        taskSpecs.map((spec) =>
+          seneca.entity('sys/traversetask').save$({
+            run_id: run.id,
+            parent_id: spec.parent_id,
+            child_id: spec.child_id,
+            parent_canon: spec.parent_canon,
+            child_canon: spec.child_canon,
+            seq: spec.seq,
+            status: 'pending',
+            task_msg: run.task_msg,
+          }),
+        ),
+      )
 
-    let taskSuccessCount = 0
+    const createdTasks: TaskEntity[] = []
     let taskFailedCount = 0
-    let childIdx = isRootIncluded ? -1 : 0
 
-    for (const taskCreation of tasksCreationRes) {
+    tasksCreationRes.forEach((taskCreation, idx) => {
+      const spec = taskSpecs[idx]!
+
       if (taskCreation.status === 'fulfilled') {
-        taskSuccessCount++
-        childIdx++
-        continue
+        createdTasks.push(taskCreation.value)
+        return
       }
 
       taskFailedCount++
-      const childrenData =
-        childIdx === -1
-          ? { child_canon: rootEntity, child_id: rootEntityId }
-          : findChildrenRes.children[childIdx]
-
-      // TODO: add retry
       seneca.log.error('task-create-failed', {
-        child_canon: childrenData?.child_canon,
-        child_id: childrenData?.child_id,
+        child_canon: spec.child_canon,
+        child_id: spec.child_id,
         err: taskCreation.reason,
       })
+    })
 
-      childIdx++
+    if (taskFailedCount > 0) {
+      // Roll back so no run starts from a partial task set.
+      const rollback = await Promise.allSettled([
+        ...createdTasks.map((t) => t.remove$()),
+        run.remove$(),
+      ])
+
+      // Best-effort: log a failed removal so a leak is observable.
+      for (const outcome of rollback) {
+        if (outcome.status === 'rejected') {
+          seneca.log.error('task-create-rollback-failed', {
+            run_id: run.id,
+            err: outcome.reason,
+          })
+        }
+      }
+
+      return {
+        ok: false,
+        why: 'task-create-failed',
+        tasksCreated: 0,
+        tasksFailed: taskFailedCount,
+      }
     }
 
-    run.total_tasks = taskSuccessCount
+    run.total_tasks = createdTasks.length
     await run.save$()
 
     return {
       ok: true,
       run,
-      tasksCreated: taskSuccessCount,
-      tasksFailed: taskFailedCount,
+      tasksCreated: createdTasks.length,
+      tasksFailed: 0,
     }
   }
 
-  // Execute a single Run task.
-  async function msgTaskExecute(
-    this: Seneca,
-    msg: TaskExecuteInput,
-  ): Promise<TaskExecuteResult> {
-    const task = msg.task
-
-    if (task.status == 'done' || task.status == 'dispatched') {
-      return { ok: true }
-    }
-
-    task.status = 'dispatched'
-    task.dispatched_at = Date.now()
-    await task.save$()
-
-    const dispatchArg: TaskDispatch = {
-      task,
-    }
-    await seneca.post(task.task_msg, dispatchArg)
-
-    return { ok: true }
-  }
-
-  // Start a Run process execution,
-  // dispatching the next pending child task.
+  // Start a run: dispatch the first pending task (order set by the `reverse`
+  // option) and return; each completion chains the next, one task in flight.
   async function msgRunStart(
     this: Seneca,
     msg: RunStartInput,
@@ -379,21 +509,16 @@ function Traverse(this: Seneca, options: TraverseOptionsFull) {
     run.started_at = Date.now()
     await run.save$()
 
-    const findChildrenRes: FindChildrenResult = await seneca.post(
-      'sys:traverse,find:children',
-      {
-        rootEntity: 'sys/traverse',
-        rootEntityId: run.id,
-      },
-    )
+    await dispatchNext(run.id)
 
-    const runTasksSpec = findChildrenRes.children
-    processRunTasks(run, runTasksSpec)
-    return { ok: true, run }
+    const startedRun: RunEntity = await seneca
+      .entity('sys/traverse')
+      .load$(run.id)
+
+    return { ok: true, run: startedRun }
   }
 
-  // Stop a Run process execution,
-  // preventing the dispatching of the next pending child task.
+  // Stop a run: halts dispatch of the next pending task.
   async function msgRunStop(
     this: Seneca,
     msg: RunStopInput,
@@ -416,6 +541,90 @@ function Traverse(this: Seneca, options: TraverseOptionsFull) {
     return { ok: true, run }
   }
 
+  async function msgRunDidComplete(
+    this: Seneca,
+    _msg: RunDidCompleteInput,
+  ): Promise<RunDidCompleteResult> {
+    return { ok: true }
+  }
+
+  // Overridable: a distributed host swaps in a store-level CAS so the run
+  // completes exactly once.
+  async function msgRunClaim(
+    this: Seneca,
+    msg: RunClaimInput,
+  ): Promise<RunClaimResult> {
+    const run: RunEntity = await seneca.entity('sys/traverse').load$(msg.run.id)
+
+    if (!run || run.status !== 'active') {
+      return { ok: true, claimed: false, run }
+    }
+
+    if ((run.completed_tasks ?? 0) < run.total_tasks) {
+      return { ok: true, claimed: false, run }
+    }
+
+    run.status = 'completed'
+    run.completed_at = Date.now()
+    await run.save$()
+
+    return { ok: true, claimed: true, run }
+  }
+
+  // Claim the run, firing did:complete only for the winning caller.
+  async function checkAndCompleteRun(runId: UUID): Promise<void> {
+    const run: RunEntity = await seneca.entity('sys/traverse').load$(runId)
+
+    if (!run || run.status !== 'active') {
+      return
+    }
+
+    const claimRes: RunClaimResult = await seneca.post(
+      'sys:traverse,on:run,do:claim',
+      { run },
+    )
+
+    if (claimRes.claimed) {
+      await seneca.post('sys:traverse,on:run,did:complete', {
+        run: claimRes.run,
+      })
+    }
+  }
+
+  // Dispatch the next pending task (one bounded query, ordered by seq), or
+  // finalise the run when none remain. One task in flight; do:complete chains
+  // the next. Fire-and-forget by default so a run stays stoppable; `awaitDispatch`
+  // awaits the post to flush save + transport send on freeze-on-return hosts.
+  async function dispatchNext(runId: UUID): Promise<void> {
+    const run: RunEntity = await seneca.entity('sys/traverse').load$(runId)
+
+    if (!run || run.status !== 'active') {
+      return
+    }
+
+    const [next]: TaskEntity[] = await seneca.entity('sys/traversetask').list$({
+      run_id: runId,
+      status: 'pending',
+      sort$: { seq: options.reverse ? -1 : 1 },
+      limit$: 1,
+    })
+
+    if (!next) {
+      await checkAndCompleteRun(runId)
+      return
+    }
+
+    const dispatch = seneca
+      .post('sys:traverse,on:task,do:execute', { task: next })
+      .catch((err: unknown) =>
+        seneca.log.error('dispatch-failed', { task_id: next.id, err }),
+      )
+
+    if (options.awaitDispatch) {
+      await dispatch
+    }
+  }
+
   function compareRelations(
     relations: ParentChildRelation[],
   ): ParentChildRelation[] {
@@ -432,57 +641,6 @@ function Traverse(this: Seneca, options: TraverseOptionsFull) {
       ? entityId
       : entityId.slice(canonSeparatorIdx + 1)
   }
-
-  async function processRunTasks(
-    runEnt: RunEntity,
-    tasks: ChildInstance[],
-  ): Promise<void> {
-    let run = runEnt
-
-    if (tasks.length === 0) {
-      run.status = 'completed'
-      run.completed_at = Date.now()
-      await run.save$()
-      return
-    }
-
-    for (const taskToProcess of tasks) {
-      run = await seneca
-        .entity(taskToProcess.parent_canon)
-        .load$(taskToProcess.parent_id)
-
-      if (!run || run.status === 'stopped') {
-        break
-      }
-
-      const task: TaskEntity = await seneca
-        .entity('sys/traversetask')
-        .load$(taskToProcess.child_id)
-
-      if (!task) {
-        continue
-      }
-
-      const canProcessNextTask =
-        task.status !== 'dispatched' && task.status !== 'done'
-
-      if (!canProcessNextTask) {
-        continue
-      }
-
-      await seneca.post('sys:traverse,on:task,do:execute', {
-        task,
-      })
-    }
-
-    // `run` may be null here if the parent entity was removed mid-traversal
-    // (the reload above exists precisely to detect concurrent changes).
-    if (run && run.status !== 'stopped') {
-      run.completed_at = Date.now()
-      run.status = 'completed'
-      await run.save$()
-    }
-  }
 }
 
 // Default options.
@@ -491,6 +649,9 @@ const defaults: TraverseOptionsFull = {
   debug: false,
   rootExecute: true,
   rootEntity: 'sys/user',
+  reverse: false,
+  awaitDispatch: false,
+  taskMsgAllow: [],
   relations: {
     parental: [],
   },

@@ -6,15 +6,8 @@ import type { Instance } from 'seneca'
 // Base Types
 // ============================================================================
 
-/**
- * The Seneca instance.
- *
- * Seneca is not strictly typed: its exported `Instance` resolves to
- * `Record<string, any>`, so member access is effectively untyped. We alias it
- * here to mark every `this`/`seneca` boundary as a deliberate, contained
- * exception to the project's otherwise-strict typing, rather than scattering
- * bare `any` across the codebase.
- */
+// Seneca's `Instance` is effectively untyped (`Record<string, any>`); aliasing
+// marks every `this`/`seneca` boundary as a contained exception to strict typing.
 export type Seneca = Instance
 
 export type EntityID = string
@@ -54,6 +47,7 @@ export type RunEntity = {
   task_msg: Message
   status: 'created' | 'active' | 'completed' | 'stopped'
   total_tasks: number
+  completed_tasks: number
   started_at?: Timestamp
   completed_at?: Timestamp
 } & Entity
@@ -64,8 +58,14 @@ export type TaskEntity = {
   run_id: UUID
   status: 'pending' | 'dispatched' | 'done'
   task_msg: Message
+  // Depth from the root (root = 0). Dispatch orders tasks by `seq`: ascending
+  // (topological) by default, or deepest-first when the `reverse` option is set.
+  seq: number
   dispatched_at?: Timestamp
   done_at?: Timestamp
+  result?: unknown
+  // App-defined slice (e.g. a PII fragment) the host accumulates across a run.
+  fragment?: unknown
 } & ChildInstance &
   Entity
 
@@ -77,6 +77,15 @@ export type TraverseOptionsFull = {
   debug: boolean
   rootExecute: boolean
   rootEntity: EntityID
+  // false (default) = topological, shallowest first. true = deepest first.
+  reverse: boolean
+  // Await the per-task dispatch instead of firing it and returning. Set true on
+  // freeze-on-return hosts (e.g. AWS Lambda SQS) where a fire-and-forget dispatch
+  // is killed mid-save; awaiting flushes the save + transport send first.
+  awaitDispatch: boolean
+  // Allowlist of task_msg patterns do:create may schedule. Empty = allow any;
+  // set it when do:create is reachable from untrusted input.
+  taskMsgAllow: string[]
   relations: {
     parental: Parental
   }
@@ -89,68 +98,75 @@ export type TraverseOptions = Partial<TraverseOptionsFull>
 // Message Input Types
 // ============================================================================
 
-/** Input for find:deps message */
 export interface FindDepsInput {
   rootEntity?: EntityID
 }
 
-/** Input for find:children message */
 export interface FindChildrenInput {
   rootEntity?: EntityID
   rootEntityId: UUID
 }
 
-/** Input for on:run,do:create message */
 export interface CreateTaskRunInput {
   rootEntity?: EntityID
   rootEntityId: UUID
   taskMsg: Message
 }
 
-/** Input for on:task,do:execute message */
 export interface TaskExecuteInput {
   task: TaskEntity
 }
 
-/** Input for on:run,do:start message */
+export interface DispatchInput {
+  task: TaskEntity
+}
+
 export interface RunStartInput {
   runId: string
 }
 
-/** Input for on:run,do:stop message */
 export interface RunStopInput {
   runId: string
+}
+
+export interface TaskCompleteInput {
+  taskId: string
+  result?: unknown
+  fragment?: unknown
+}
+
+export interface RunDidCompleteInput {
+  run: RunEntity
+}
+
+export interface RunClaimInput {
+  run: RunEntity
 }
 
 // ============================================================================
 // Message Output Types
 // ============================================================================
 
-/** Base result type */
 export interface BaseResult {
   ok: boolean
 }
 
-/** Invalid/error result */
 export interface InvalidResult extends BaseResult {
   ok: false
   why: string
   error?: Record<string, any>
 }
 
-/** Result for find:deps message */
 export interface FindDepsResult extends BaseResult {
   ok: true
   deps: ParentChildRelation[]
 }
 
-/** Result for find:children message */
 export interface FindChildrenResult extends BaseResult {
   ok: true
   children: ChildInstance[]
 }
 
-/** Result for on:run,do:create message */
 export interface CreateTaskRunResult extends BaseResult {
   ok: true
   run: RunEntity
@@ -158,30 +174,48 @@ export interface CreateTaskRunResult extends BaseResult {
   tasksFailed: number
 }
 
-/** Result for on:task,do:execute message */
+/** Result when on:run,do:create rolls back after task-create failures. */
+export interface CreateTaskRunRollbackResult extends BaseResult {
+  ok: false
+  why: 'task-create-failed'
+  tasksCreated: 0
+  tasksFailed: number
+}
+
 export interface TaskExecuteResult extends BaseResult {
   ok: true
 }
 
-/** Result for on:run,do:start message */
+export interface DispatchResult extends BaseResult {
+  ok: true
+}
+
 export interface RunStartResult extends BaseResult {
   ok: true
   run: RunEntity
 }
 
-/** Result for on:run,do:stop message */
 export interface RunStopResult extends BaseResult {
   ok: true
   run: RunEntity
 }
 
-// ============================================================================
-// Internal/Helper Types
-// ============================================================================
+export interface TaskCompleteResult extends BaseResult {
+  ok: true
+  // Absent when the completion referenced an unknown task.
+  doneTasks?: number
+  // Absent for an unknown-task no-op.
+  run?: RunEntity
+}
 
-/** Dispatch argument forwarded to a task's target message. */
-export interface TaskDispatch {
-  task: TaskEntity
+export interface RunDidCompleteResult extends BaseResult {
+  ok: true
+}
+
+export interface RunClaimResult extends BaseResult {
+  ok: true
+  claimed: boolean
+  run: RunEntity
 }
 
 // ============================================================================
@@ -194,22 +228,29 @@ export type MsgFindChildrenFn = (
 ) => Promise<FindChildrenResult>
 export type MsgCreateTaskRunFn = (
   msg: CreateTaskRunInput,
-) => Promise<CreateTaskRunResult>
+) => Promise<CreateTaskRunResult | CreateTaskRunRollbackResult | InvalidResult>
 export type MsgTaskExecuteFn = (
   msg: TaskExecuteInput,
 ) => Promise<TaskExecuteResult>
+export type MsgDispatchFn = (msg: DispatchInput) => Promise<DispatchResult>
 export type MsgRunStartFn = (
   msg: RunStartInput,
 ) => Promise<RunStartResult | InvalidResult>
 export type MsgRunStopFn = (
   msg: RunStopInput,
 ) => Promise<RunStopResult | InvalidResult>
+export type MsgTaskCompleteFn = (
+  msg: TaskCompleteInput,
+) => Promise<TaskCompleteResult>
+export type MsgRunDidCompleteFn = (
+  msg: RunDidCompleteInput,
+) => Promise<RunDidCompleteResult>
+export type MsgRunClaimFn = (msg: RunClaimInput) => Promise<RunClaimResult>
 
 // ============================================================================
 // Plugin Export Type
 // ============================================================================
 
-/** Traverse plugin function */
 export interface TraversePlugin {
   (this: Seneca, options: TraverseOptionsFull): void
   defaults: TraverseOptionsFull
