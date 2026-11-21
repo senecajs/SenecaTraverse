@@ -38,4 +38,5 @@ published from a fork, and changes the message API.
   `seneca-msg-test` and `@seneca/maintain` and the stale Jest configuration
   are removed.
 - `repository.url` uses `git+https`, `publishConfig` sets public access, and
-  the package includes `CHANGES.md`.
+  the package includes `CHANGES.md` and no longer ships the TypeScript build
+  information file `dist/tsconfig.tsbuildinfo`.
