@@ -14,8 +14,7 @@ const TraverseDoc = __1.default;
         (0, code_1.expect)(TraverseDoc).exist();
         const seneca = (0, seneca_1.default)({ legacy: false })
             .test()
-            .use('promisify')
-            .use('entity')
+            .use('@seneca/entity')
             .use(__1.default);
         await seneca.ready();
         (0, code_1.expect)(seneca.find_plugin('Traverse')).exist();

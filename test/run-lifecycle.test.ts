@@ -550,7 +550,8 @@ describe('Traverse: run lifecycle', () => {
         },
       })
       .message('aim:task,async:test', async function (this: any, msg: any) {
-        await sleep(50)
+        // Long enough that do:start returns well within it on a loaded machine.
+        await sleep(250)
         executionCount++
         // Host signals completion once the task's work is done.
         await this.post('sys:traverse,on:task,do:complete', {
@@ -582,14 +583,15 @@ describe('Traverse: run lifecycle', () => {
     const elapsed = Date.now() - startedAt
 
     expect(startRes.ok).equal(true)
-    // returned before the 50 ms task delay — not awaiting tasks
-    expect(elapsed).lessThan(40)
+    // returned before the 250 ms task delay — not awaiting tasks
+    expect(elapsed).lessThan(200)
     expect(executionCount).equal(0)
 
     // Poll for background completion; a fixed sleep races a slow CI.
     const finalRun = await waitFor(
       () => seneca.entity('sys/traverse').load$(runEnt.id),
       (r: any) => r.status === 'completed',
+      { timeout: 5000 },
     )
 
     expect(executionCount).equal(3) // root + 2 children

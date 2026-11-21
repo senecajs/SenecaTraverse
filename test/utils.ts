@@ -2,6 +2,10 @@
 
 import Seneca from 'seneca'
 
+// Loads the @seneca/entity 29 augmentation of Seneca's `Instance` (`entity`,
+// `make`, `make$`) for the test program.
+import type {} from '@seneca/entity'
+
 // Shared helpers for the Traverse test suite.
 
 function sleep(ms: number) {
@@ -37,7 +41,7 @@ function makeSeneca(opts: any = {}) {
   if (opts.quiet) {
     senecaOpts.debug = { undead: true }
   }
-  const seneca = Seneca(senecaOpts).test().use('promisify').use('entity')
+  const seneca = Seneca(senecaOpts).test().use('@seneca/entity')
   return seneca
 }
 

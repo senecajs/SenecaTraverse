@@ -17,13 +17,15 @@ Data Traverse plugin for the Seneca framework.
 ## Install
 
 ```sh
-$ npm install @seneca/traverse
+$ npm install seneca@^4 @seneca/entity @seneca/traverse
 ```
+
+Requires Node.js `>=24`, Seneca `^4.0.0` and `@seneca/entity` `^29.0.0`.
 
 ## Quick Example
 
 ```js
-seneca.use('Traverse', {})
+seneca.use('@seneca/entity').use('@seneca/traverse', {})
 
 const depsRes = await seneca.post('sys:traverse,find:deps')
 // === { ok: true, deps: [['foo/bar0,foo/bar1'],...] }
@@ -31,7 +33,7 @@ const depsRes = await seneca.post('sys:traverse,find:deps')
 
 ## More Examples
 
-Review the [unit tests](test/Traverse.test.ts) for more examples.
+Review the [unit tests](test/) for more examples.
 
 <!--START:options-->
 
