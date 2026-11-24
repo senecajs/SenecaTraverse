@@ -14,8 +14,7 @@ describe('Traverse: load plugin', () => {
 
     const seneca = Seneca({ legacy: false })
       .test()
-      .use('promisify')
-      .use('entity')
+      .use('@seneca/entity')
       .use(Traverse)
     await seneca.ready()
 

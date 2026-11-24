@@ -422,7 +422,8 @@ const utils_1 = require("./utils");
             },
         })
             .message('aim:task,async:test', async function (msg) {
-            await (0, utils_1.sleep)(50);
+            // Long enough that do:start returns well within it on a loaded machine.
+            await (0, utils_1.sleep)(250);
             executionCount++;
             // Host signals completion once the task's work is done.
             await this.post('sys:traverse,on:task,do:complete', {
@@ -447,11 +448,11 @@ const utils_1 = require("./utils");
         });
         const elapsed = Date.now() - startedAt;
         (0, code_1.expect)(startRes.ok).equal(true);
-        // returned before the 50 ms task delay — not awaiting tasks
-        (0, code_1.expect)(elapsed).lessThan(40);
+        // returned before the 250 ms task delay — not awaiting tasks
+        (0, code_1.expect)(elapsed).lessThan(200);
         (0, code_1.expect)(executionCount).equal(0);
         // Poll for background completion; a fixed sleep races a slow CI.
-        const finalRun = await (0, utils_1.waitFor)(() => seneca.entity('sys/traverse').load$(runEnt.id), (r) => r.status === 'completed');
+        const finalRun = await (0, utils_1.waitFor)(() => seneca.entity('sys/traverse').load$(runEnt.id), (r) => r.status === 'completed', { timeout: 5000 });
         (0, code_1.expect)(executionCount).equal(3); // root + 2 children
         // completion barrier: run finishes once every task reports done
         (0, code_1.expect)(finalRun.status).equal('completed');

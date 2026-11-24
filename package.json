@@ -1,6 +1,6 @@
 {
   "name": "@seneca/traverse",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "dist/Traverse.js",
   "type": "commonjs",
   "types": "dist/Traverse.d.ts",
@@ -13,7 +13,7 @@
   "author": "Leonardo Cunha - leonardocunha.com",
   "repository": {
     "type": "git",
-    "url": "git://github.com/senecajs/SenecaTraverse.git"
+    "url": "git+https://github.com/senecajs/SenecaTraverse.git"
   },
   "scripts": {
     "prettier": "prettier --write .",
@@ -23,35 +23,34 @@
     "build": "tsc --build src test",
     "doc": "seneca-doc",
     "clean": "rm -rf dist dist-test node_modules yarn.lock package-lock.json",
-    "reset": "npm run clean && npm i && npm run build && npm test",
-    "repo-tag": "REPO_VERSION=`node -e \"console.log(require('./package').version)\"` && echo TAG: v$REPO_VERSION && git commit -a -m v$REPO_VERSION && git push && git tag v$REPO_VERSION && git push --tags;",
-    "repo-publish": "npm run clean && npm i && npm run repo-publish-quick",
-    "repo-publish-quick": "npm run build && npm run test && npm run doc && npm run repo-tag && npm publish --access public --registry https://registry.npmjs.org "
+    "reset": "npm run clean && npm i && npm run build && npm test"
   },
   "license": "MIT",
   "files": [
     "dist",
+    "!dist/*.tsbuildinfo",
     "src/**/*.ts",
-    "LICENSE"
+    "LICENSE",
+    "README.md",
+    "CHANGES.md"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "devDependencies": {
     "@hapi/code": "^9.0.3",
-    "@seneca/doc": "^8.0.0",
-    "@seneca/maintain": "^0.1.0",
-    "@types/node": "^26.0.1",
+    "@seneca/doc": "^9.0.0",
+    "@seneca/entity": "^29.0.0",
+    "@types/node": "^24.0.0",
     "prettier": "3.8.4",
-    "seneca-msg-test": "^4.1.0",
-    "shape": "^10.1.0",
+    "seneca": "^4.0.0",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
-    "@seneca/entity-util": ">=3",
-    "seneca": ">=3||>=4.0.0-rc2",
-    "seneca-entity": ">=26",
-    "seneca-promisify": ">=3",
-    "shape": ">=10"
+    "@seneca/entity": "^29.0.0",
+    "seneca": "^4.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -33,7 +33,7 @@ function makeSeneca(opts = {}) {
     if (opts.quiet) {
         senecaOpts.debug = { undead: true };
     }
-    const seneca = (0, seneca_1.default)(senecaOpts).test().use('promisify').use('entity');
+    const seneca = (0, seneca_1.default)(senecaOpts).test().use('@seneca/entity');
     return seneca;
 }
 //# sourceMappingURL=utils.js.map

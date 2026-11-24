@@ -2,12 +2,16 @@
 
 import type { Instance } from 'seneca'
 
+// Loads the @seneca/entity 29 augmentation of Seneca's `Instance`, which
+// declares `entity`, `make` and `make$` for this program.
+import type {} from '@seneca/entity'
+
 // ============================================================================
 // Base Types
 // ============================================================================
 
-// Seneca's `Instance` is effectively untyped (`Record<string, any>`); aliasing
-// marks every `this`/`seneca` boundary as a contained exception to strict typing.
+// Seneca 4 types `Instance` strictly; @seneca/entity (imported above) adds the
+// entity members this plugin calls.
 export type Seneca = Instance
 
 export type EntityID = string

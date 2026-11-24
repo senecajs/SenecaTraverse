@@ -1,7 +1,5 @@
 /* Copyright © 2026 Seneca Project Contributors, MIT License. */
 
-import { Shape, Open, Exact, Min, Skip } from 'shape'
-
 import type {
   // Base Types
   Seneca,
@@ -50,26 +48,6 @@ import type {
 
 export type { TraverseOptions } from './types'
 
-// Domain constraints (enum membership, nested entity shape) the native
-// `.message()` schema can't express. `Open` lets Seneca meta and entity methods
-// pass through.
-const taskMsgShape = Shape(
-  Open({
-    task: Open({
-      run_id: String,
-      seq: Skip(Min(0, Number)),
-      status: Exact('pending', 'dispatched', 'done'),
-    }),
-  }),
-)
-const runMsgShape = Shape(
-  Open({
-    run: Open({
-      status: Exact('created', 'active', 'completed', 'stopped'),
-    }),
-  }),
-)
-
 // Run `shape` before the handler; a mismatch throws, surfaced as an
 // invalid-message action error. The wrapper keeps `fn`'s name so seneca-doc can
 // still map its TraverseDoc description.
@@ -87,6 +65,28 @@ function shaped<M extends object, R>(
 
 function Traverse(this: Seneca, options: TraverseOptionsFull) {
   const seneca = this
+
+  // Domain constraints (enum membership, nested entity shape) the native
+  // `.message()` schema can't express. `Open` lets Seneca meta and entity
+  // methods pass through. Built with the shape builders Seneca provides
+  // (`seneca.valid`), so the plugin uses Seneca's own copy of shape.
+  const { Open, Exact, Min, Skip } = seneca.valid
+  const taskMsgShape = seneca.valid(
+    Open({
+      task: Open({
+        run_id: String,
+        seq: Skip(Min(0, Number)),
+        status: Exact('pending', 'dispatched', 'done'),
+      }),
+    }),
+  )
+  const runMsgShape = seneca.valid(
+    Open({
+      run: Open({
+        status: Exact('created', 'active', 'completed', 'stopped'),
+      }),
+    }),
+  )
 
   // Rebuild a live entity only when the transport stripped its methods (e.g. AWS
   // SQS delivers plain JSON); a method-preserving entity is reused as-is.
